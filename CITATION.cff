@@ -10,6 +10,15 @@ version: 1.0.0
 date-released: "2026-08-30"
 license: MIT
 repository-code: "https://github.com/15236702150master/DePhaseKit"
+# Concept DOI：永久指向最新版本，引用软件时用它
+doi: 10.5281/zenodo.22180320
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.22180320
+    description: Concept DOI（所有版本，永久指向最新版）
+  - type: doi
+    value: 10.5281/zenodo.22180321
+    description: v1.0.0 的版本 DOI
 keywords:
   - seismology
   - depth phase

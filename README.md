@@ -1,6 +1,7 @@
 # DePhaseKit（深度震相分析工具包）
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22180320.svg)](https://doi.org/10.5281/zenodo.22180320)
 
 `DePhaseKit`（包名 `dephasekit`，命令 `dpk`）是一个用于
 深度震相分析的桌面 GUI 工具与计算库。它以 SAC 波形目录为输入，支持：
@@ -28,7 +29,9 @@ python examples/01_forward_cross_validation.py   # 不需数据，验证安装
 示例说明见 [examples/README.md](examples/README.md)。
 
 **许可证**：MIT，见 [LICENSE](LICENSE)。
-**引用方式**：见 [CITATION.cff](CITATION.cff)；方法与结果请引用配套论文。
+**引用方式**：见 [CITATION.cff](CITATION.cff)。软件请引用 DOI
+[10.5281/zenodo.22180320](https://doi.org/10.5281/zenodo.22180320)（指向最新版本）；
+方法与结果请引用配套论文。
 
 ## 1. 它能做什么
 
