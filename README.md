@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-`DePhaseKit`（包名 `dephasekit`，命令 `dephase`，早期名称 `dephasekit`）是一个用于
+`DePhaseKit`（包名 `dephasekit`，命令 `dpk`）是一个用于
 深度震相分析的桌面 GUI 工具与计算库。它以 SAC 波形目录为输入，支持：
 
 - 在主拾取窗中逐页查看和修改 `t0-t9`
@@ -21,7 +21,7 @@
 
 ```bash
 pip install -e .          # 或按第 3 节用 conda 建环境
-dephase <事件目录>         # 启动 GUI
+dpk <事件目录>            # 启动 GUI（等价于 dephase）
 
 python examples/01_forward_cross_validation.py   # 不需数据，验证安装
 ```
@@ -44,6 +44,46 @@ python examples/01_forward_cross_validation.py   # 不需数据，验证安装
 - 在主拾取窗里按 `user1` 或 `user2` 集合跳转
 - 做临时带通滤波显示，不改原始振幅文件
 - 将拾取结果写回 SAC；将 `user1` 波形移动到 LowQ 目录
+
+## 1.5 界面一览
+
+工具由三个窗口构成，覆盖从单道拾取到跨事件复核的完整流程。
+
+### 主拾取窗
+
+![主拾取窗](docs/images/01_main_window.png)
+
+逐页浏览事件目录里的波形，按某个 SAC 头段对齐后直接拾取 `t0`–`t9`。图中每道左上角依次是
+台站名、震中距/方位角/反方位角、理论到时行，以及当前对齐头段与参考头段的时差 `Δt` 和振幅比；
+彩色竖线是已拾取或由模型给出的震相标记。顶部三行分别是对齐与事件切换、带通滤波、理论震相控件，
+右上是翻页与按人工状态跳转的按钮。
+
+### 叠加子系统
+
+![叠加子系统](docs/images/02_stack_window.png)
+
+按震中距与方位角分组叠加后，在叠加道上拾取深度震相前驱波。道标签中的
+`[group1 / t6 / N=7]` 表示分组名、对齐头段与入叠道次；下一行的 `pP-pmP:10.32 km`
+是由当前 `t6`（pP）与 `t8`（pmP）标记实时反算的地壳厚度，`sP-smP` 同理。
+叠加道的对齐头段是结构性的（数据已按它叠好），因此只读——要重新对齐需重新叠加。
+
+### 厚度审阅窗
+
+![厚度审阅窗](docs/images/03_thickness_review.png)
+
+跨事件汇总所有分组的反射点与厚度，用于快速定位不合理的分组。三个视图联动：
+左侧是选中分组的叠加道预览（红色为叠加道，下方为各成员道），右上是反射点分布图
+（颜色代表厚度，色标 6–20 km），右下是可排序的分组表格，`|z|` 列给出该组厚度相对
+邻近分组的异常评分。在地图上点选或在表格中选行，另外两个视图会同步。
+
+### 正演与厚度反演
+
+![两条正演路径](docs/images/04_forward_paths.png)
+
+`forward` 子包提供两条相互独立的正演路径。左图是二者对同一模型给出的理论走时差：
+TauP 变莫霍精确射线追踪与平层解析公式的走时敏感度相差 **1.13%**，据此可以判断平层近似
+在本震中距范围内是否成立。右图是由观测走时差反演厚度的关系，阴影为拾取误差与速度
+不确定度合成的 ±σ 带。这两张图可由 `examples/01_forward_cross_validation.py` 复算。
 
 ## 2. 文件说明
 
@@ -89,7 +129,7 @@ pip install -e '.[test]'   # 需要跑测试时
 
 输入是一个事件目录，目录里放同一事件的 SAC 文件。
 
-> 下文中的 `<PROJECT_ROOT>` 指项目根目录，即 dephasekit 所在目录的上一级（dephasekit 位于 `<PROJECT_ROOT>/opt/dephasekit/`）。代码内部通过脚本位置自动解析，不依赖硬编码绝对路径。
+> 下文中的 `<PROJECT_ROOT>` 指项目根目录，即本工具所在目录的上一级（本工具位于 `<PROJECT_ROOT>/opt/dephasekit/`）。代码内部通过脚本位置自动解析，不依赖硬编码绝对路径。
 
 常见命名示例：
 
@@ -178,14 +218,13 @@ stack 工作目录里现在有两类工作区级文件，外加若干 stack 子�
 
 低层维护脚本 [repair_stack_metadata.py](repair_stack_metadata.py) 也支持 `--health`、`--index`、`--refresh-index`、`--quarantine-invalid`，但日常更推荐先用 `ppk_stack.py`，因为它能同时接受原始事件目录和 stack 工作目录。
 
-如果你希望像命令一样直接运行，可以写一个脚本 `dephasekit`：
+用 `pip install -e .` 安装后会自动生成 `dephase` 命令。如果想要更短的命令，
+可以在 `PATH` 里放一个 `dpk` 脚本：
 
 ```bash
 #!/bin/bash
-python /path/to/dephasekit/ppk.py "$@"
+exec /path/to/dephasekit/.venv/bin/python /path/to/dephasekit/ppk.py "$@"
 ```
-
-然后把这个脚本放到你的 `PATH` 里，例如 `$SACHOME/bin`。
 
 ## 6. 命令行参数
 
