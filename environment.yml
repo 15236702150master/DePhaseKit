@@ -1,0 +1,9 @@
+name: dephasekit
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - matplotlib==3.8.2
+  - numpy==1.26.2 
+  - obspy==1.4.0
+  - PySide6==6.7.0

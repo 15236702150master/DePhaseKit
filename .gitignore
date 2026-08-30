@@ -1,0 +1,22 @@
+# 虚拟环境（可由 environment.yml 重建，952M 不入库）
+.venv/
+
+# Python 缓存
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# 编辑器 / 工具
+.omx/
+.idea/
+.vscode/
+
+# 运行时产物
+backups/
+gmt.history
+*.log
+
+# 系统文件
+.DS_Store
+Thumbs.db
