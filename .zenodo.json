@@ -1,0 +1,28 @@
+{
+  "upload_type": "software",
+  "title": "DePhaseKit: A toolkit for depth-phase precursor picking and crustal-thickness inversion",
+  "description": "<p>DePhaseKit (深度震相分析工具包) is a desktop GUI and computation library for analysing source-side depth phases in teleseismic waveforms.</p><p>It supports interactive arrival-time picking on SAC data, grouping and stacking records by epicentral distance and azimuth, picking the depth-phase precursors pmP and smP on stacked traces, and inverting crustal thickness at the reflection point from the pP-pmP differential travel time. Two mutually independent forward paths are provided and cross-validated: a flat-layer analytic formula and exact ray tracing through spherically symmetric models with a variable Moho depth built for TauP. A cross-event review tool collects pierce points and thicknesses so that anomalous groups can be located quickly.</p><p>The package accompanies a study of crustal thickness beneath the South Sandwich island arc, an intra-oceanic subduction zone that lies almost entirely below sea level and therefore cannot be imaged by receiver functions or ambient-noise methods. Because the reflection point lies above the source rather than beneath a station, the method requires no stations in the study area.</p>",
+  "creators": [
+    {
+      "name": "Wu, Zhenyu",
+      "affiliation": "College of Earth and Planetary Sciences, Chengdu University of Technology, Chengdu 610059, China"
+    }
+  ],
+  "license": "MIT",
+  "access_right": "open",
+  "version": "1.0.0",
+  "language": "zho",
+  "keywords": [
+    "seismology",
+    "depth phase",
+    "precursor",
+    "pmP",
+    "crustal thickness",
+    "Moho",
+    "waveform stacking",
+    "travel-time inversion",
+    "TauP",
+    "intra-oceanic arc",
+    "South Sandwich"
+  ]
+}

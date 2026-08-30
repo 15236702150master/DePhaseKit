@@ -20,6 +20,8 @@ authors:
   - family-names: "Wu"
     given-names: "Zhenyu"
     alias: "吴震宇"
+    affiliation: "College of Earth and Planetary Sciences, Chengdu University of Technology"
+    # 有 ORCID 后取消下行注释并填入
     # orcid: "https://orcid.org/0000-0000-0000-0000"
 
 # 方法与结果请引用配套论文（投稿中，见刊后补全卷期页码）。
@@ -30,5 +32,6 @@ preferred-citation:
     - family-names: "Wu"
       given-names: "Zhenyu"
       alias: "吴震宇"
+      affiliation: "College of Earth and Planetary Sciences, Chengdu University of Technology"
   year: 2026
   journal: "<期刊名>"
