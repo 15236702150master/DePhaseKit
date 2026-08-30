@@ -18,7 +18,7 @@ from PySide6.QtCore import Qt
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from pierce_point_cache import PROJECT_ROOT  # noqa: E402
+from pierce_point_cache import DEFAULT_OUTPUT_ROOT, PROJECT_ROOT  # noqa: E402
 
 # Common prefix for fixture paths, derived from the project layout so the
 # tests don't hardcode an absolute filesystem location.
@@ -38,7 +38,11 @@ from WaveFigure import (  # noqa: E402
 )
 from ppk import MatplotlibWidget  # noqa: E402
 from stack_crustal_thickness import calculate_pp_pmp_thickness  # noqa: E402
-from stack_thickness_review_dialog import ThicknessTableModel, OUTLIER_THRESHOLD  # noqa: E402
+from stack_thickness_review_dialog import (  # noqa: E402
+    OUTLIER_THRESHOLD,
+    ThicknessReviewWindow,
+    ThicknessTableModel,
+)
 from stack_system import (  # noqa: E402
     build_stack_workspace_index,
     build_stack_workspace_manifest,
@@ -718,6 +722,9 @@ class PreviewCurveReferenceTests(unittest.TestCase):
         figure.markers = {str(idx): {'wave_a.sac': math.nan} for idx in range(10)}
         figure.marker_styles = {str(idx): (f't{idx}', '#800080') for idx in range(10)}
         figure.key = '6'
+        # 本用例只关心标记图元是否被替换，与对齐参考无关；取 __init__ 的默认对齐头段 t0，
+        # 使 _set_wave_marker_time 里的 updates_alignment_reference 判定为假。
+        figure.tmarker = 't0'
         figure.pick_mode_armed = True
         figure.stack_mode = False
         figure._event_x_to_absolute = lambda click_time, wave_index: click_time
@@ -941,9 +948,15 @@ class PreviewCurveReferenceTests(unittest.TestCase):
         figure = WaveFigure.__new__(WaveFigure)
         with tempfile.TemporaryDirectory() as temp_dir:
             figure.wavepath = _PROJ + '/data/pick_jandy/2011_03_06_14_32_36'
+            # __init__ 里是 source_event_dir_for_runtime(wavepath)；对非 stack 的源事件目录
+            # 该函数原样返回 wavepath，故此处直接取同值。
+            figure.runtime_event_dir = figure.wavepath
             figure.dt = 0.05
             figure.preview_pierce_phase = 'PKIKP'
             figure.preview_pierce_model = 'iasp91'
+            # 同为 __init__ 默认值；本用例 patch 掉了穿透点均值，二者只需存在即可。
+            figure.preview_pierce_output_root = str(DEFAULT_OUTPUT_ROOT)
+            figure.preview_pierce_cache = {}
             figure._current_bandpass_profile = lambda: {'low': 1.0, 'high': 2.0}
             figure._preview_stack_output_directory = lambda: temp_dir
             figure._stack_preview_pierce_mean = lambda wave_names: (math.nan, math.nan)
@@ -5610,6 +5623,9 @@ class PreviewCurveReferenceTests(unittest.TestCase):
         figure._preview_reference_mode_label = lambda tmarker: 'marker'
         figure.preview_amplitude_scale = 1.0
         figure.preview_even_spacing_step = 1.0
+        # 与 WaveFigure.__init__ 的默认值一致（WaveFigure.py 中 preview_hidden_wave_names = set()）；
+        # 这些用例走 __new__ 绕过 __init__，属性需手工补齐。
+        figure.preview_hidden_wave_names = set()
         figure._pierce_record_style = lambda wave_name, selected=False: (
             '#ff5fa2' if selected else '#1f77b4',
             '#ff5fa2' if selected else '#1f77b4',
@@ -5678,6 +5694,9 @@ class PreviewCurveReferenceTests(unittest.TestCase):
         figure._preview_reference_mode_label = lambda tmarker: 'marker'
         figure.preview_amplitude_scale = 1.0
         figure.preview_even_spacing_step = 1.0
+        # 与 WaveFigure.__init__ 的默认值一致（WaveFigure.py 中 preview_hidden_wave_names = set()）；
+        # 这些用例走 __new__ 绕过 __init__，属性需手工补齐。
+        figure.preview_hidden_wave_names = set()
         figure._pierce_record_style = lambda wave_name, selected=False: (
             '#ff5fa2' if selected else '#1f77b4',
             '#ff5fa2' if selected else '#1f77b4',
