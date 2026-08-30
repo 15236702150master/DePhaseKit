@@ -158,17 +158,44 @@ class PreviewCurveReferenceTests(unittest.TestCase):
                 (1920, 0, 2560, 1392),
             )
 
-    def test_main_window_startup_uses_window_maximized_state(self):
+    def _run_set_geom_center(self, geo_size, workarea):
+        """跑一次 _set_geom_center，返回记录到的调用。
+
+        geo_size: showMaximized() 之后窗口实际变成的 (宽, 高)。
+        workarea: 屏幕工作区 (x, y, 宽, 高)。
+        """
         widget = MatplotlibWidget.__new__(MatplotlibWidget)
         recorded = {}
-
-        widget.windowState = lambda: Qt.WindowNoState
-        widget.setWindowState = lambda state: recorded.__setitem__('window_state', state)
+        widget.showMaximized = lambda: recorded.__setitem__('maximized_called', True)
         widget.show = lambda: recorded.__setitem__('show_called', True)
+        widget.geometry = lambda: SimpleNamespace(
+            width=lambda: geo_size[0], height=lambda: geo_size[1]
+        )
+        wx, wy, ww, wh = workarea
+        rect = SimpleNamespace(
+            isValid=lambda: True, x=lambda: wx, y=lambda: wy,
+            width=lambda: ww, height=lambda: wh,
+        )
+        with patch('ppk.screen_workarea_rect', lambda widget=None, **kw: rect), \
+                patch('ppk.center_widget_on_workarea',
+                      lambda w, frac=0.96: recorded.__setitem__('centered_frac', frac)):
+            widget._set_geom_center()
+        return recorded
 
-        widget._set_geom_center()
+    def test_main_window_startup_maximizes_without_fallback_when_wm_honours_it(self):
+        # 窗管理器正常放大到工作区尺寸时，不应再走居中回退。
+        recorded = self._run_set_geom_center(geo_size=(1920, 1040), workarea=(0, 0, 1920, 1040))
 
-        self.assertEqual(recorded.get('window_state'), Qt.WindowMaximized)
+        self.assertTrue(recorded.get('maximized_called'))
+        self.assertNotIn('centered_frac', recorded)
+
+    def test_main_window_startup_falls_back_to_centered_geometry_when_maximize_ignored(self):
+        # WSLg/XWayland 上 showMaximized 可能被忽略（窗口停在左上角默认尺寸），
+        # 此时必须回退到近满屏居中几何，否则主拾取窗开出来是小窗。
+        recorded = self._run_set_geom_center(geo_size=(800, 600), workarea=(0, 0, 1920, 1040))
+
+        self.assertTrue(recorded.get('maximized_called'))
+        self.assertEqual(recorded.get('centered_frac'), 0.98)
         self.assertTrue(recorded.get('show_called'))
 
     def test_evtdata_can_override_event_name(self):
@@ -1156,7 +1183,10 @@ class PreviewCurveReferenceTests(unittest.TestCase):
             self.assertAlmostEqual(float(stack_trace.stats.sac.t6), 13.75)
             self.assertAlmostEqual(float(stack_trace.stats.sac.b), -16.25)
 
-    def test_stack_preview_reanchors_display_axis_stack_to_its_alignment_marker(self):
+    def test_stack_preview_anchors_stack_axis_at_window_relative_point_despite_drifted_header(self):
+        # 现代帧约定：stack 数据在构造时就对齐在 -x1，所以显示锚点恒取 -x1，
+        # 不采信 SAC 头段里可能已漂移的对齐值（这里头段 t6=791 就是漂移值）。
+        # 这条约定用来切断标记漂移的自传播，见 _collect_stack_preview_stream 内注释。
         with tempfile.TemporaryDirectory() as temp_dir:
             source_dir = Path(temp_dir, 'source_evt')
             stack_dir = Path(temp_dir, 'stack_evt')
@@ -1203,10 +1233,66 @@ class PreviewCurveReferenceTests(unittest.TestCase):
             waves, reference_times, _active_reference_times = figure._collect_stack_preview_stream('6', 'stack_a.sac')
 
             stack_trace = waves[0]
-            self.assertAlmostEqual(reference_times[0], stack_t6)
+            window_start = -30.0
+            self.assertAlmostEqual(reference_times[0], -window_start)
+            # 成员道仍保持各自的绝对到时，不被 stack 的相对帧带偏。
+            self.assertAlmostEqual(reference_times[1], 790.0)
+            self.assertAlmostEqual(reference_times[2], 792.0)
+            # 锚点已落在道内，无需重锚，b/e 保持原值；头段 t6 也不被改写。
+            self.assertAlmostEqual(float(stack_trace.stats.sac.b), 0.0)
+            self.assertAlmostEqual(float(stack_trace.stats.sac.e), 999 * 0.05, places=4)
             self.assertAlmostEqual(float(stack_trace.stats.sac.t6), stack_t6)
-            self.assertAlmostEqual(float(stack_trace.stats.sac.b), stack_t6 - 30.0)
-            self.assertAlmostEqual(float(stack_trace.stats.sac.e), stack_t6 - 30.0 + 999 * 0.05)
+
+    def test_stack_preview_reanchors_legacy_window_relative_stack_to_member_center(self):
+        # 旧格式 stack SAC：对齐头段写成 0、b/e 就是窗口本身([-30,20])。
+        # 这类道要重锚到成员对齐点的中心，否则会和成员道差一整个绝对到时。
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source_dir = Path(temp_dir, 'source_evt')
+            stack_dir = Path(temp_dir, 'stack_evt')
+            source_dir.mkdir()
+            stack_dir.mkdir()
+
+            def write_sac(path, network, station, data, gcarc, az, t6, b=0.0):
+                trace = Trace(data=np.asarray(data, dtype=np.float32))
+                trace.stats.network = network
+                trace.stats.station = station
+                trace.stats.delta = 0.05
+                trace.stats.sac = obspy.core.AttribDict(
+                    b=b,
+                    e=b + (len(data) - 1) * 0.05,
+                    gcarc=gcarc,
+                    az=az,
+                    baz=az + 180.0,
+                    t6=t6,
+                )
+                trace.write(str(path), format='SAC')
+
+            write_sac(source_dir / 'member_a.sac', 'AA', 'A', np.ones(1000), 20.0, 10.0, 790.0)
+            write_sac(source_dir / 'member_b.sac', 'BB', 'B', np.ones(1000), 30.0, 20.0, 792.0)
+            # 旧格式：t6=0、b=-30（窗口起点）
+            write_sac(stack_dir / 'stack_a.sac', 'DPK', 'STACK', np.ones(1001), 25.0, 15.0, 0.0, b=-30.0)
+
+            figure = WaveFigure.__new__(WaveFigure)
+            figure.wavepath = str(stack_dir)
+            figure.runtime_event_dir = str(source_dir)
+            figure.stack_mode = True
+            figure.stack_sidecars = {
+                'stack_a.sac': {
+                    'align_marker': 't6',
+                    'window': [-30.0, 20.0],
+                    'wave_names_used': ['member_a.sac', 'member_b.sac'],
+                    'markers': {'t6': 0.0},
+                }
+            }
+            figure.dt = 0.05
+            figure.bandpass_settings = {'freqmin': None, 'freqmax': None, 'corners': 2, 'passes': 2}
+            figure.user_markers = {key: {} for key in ('user1', 'user2', 'user3', 'user4', 'user5')}
+            figure.preview_hidden_wave_names = set()
+
+            _waves, reference_times, _active = figure._collect_stack_preview_stream('6', 'stack_a.sac')
+
+            # 成员对齐点中心 = (790 + 792) / 2
+            self.assertAlmostEqual(reference_times[0], 791.0)
 
     def _build_member_marker_fixture(self, temp_dir):
         source_dir = Path(temp_dir, 'source_evt')
@@ -1289,18 +1375,33 @@ class PreviewCurveReferenceTests(unittest.TestCase):
             self.assertEqual(written, ['member_a.sac'])
             self.assertAlmostEqual(obspy.read(str(source_path))[0].stats.sac.t6, 845.0)
 
-    def test_stack_preview_stack_marker_edit_reflects_without_restart(self):
+    def test_stack_trace_align_marker_is_read_only(self):
+        # 对齐头段在 stack 道上是结构性的（数据已按它叠好，值恒为 -x1），
+        # 允许改会让显示与数据脱节，要重新对齐只能重新叠加。
         with tempfile.TemporaryDirectory() as temp_dir:
-            figure, stack_t6 = self._build_member_marker_fixture(temp_dir)
+            figure, _stack_t6 = self._build_member_marker_fixture(temp_dir)
+            window_align_point = 30.0  # = -window[0]
 
             _, reference_times, _ = figure._collect_stack_preview_stream('6', 'stack_a.sac')
-            self.assertAlmostEqual(reference_times[0], stack_t6)
+            self.assertAlmostEqual(reference_times[0], window_align_point)
+            self.assertTrue(figure._is_stack_trace_align_marker('stack_a.sac', '6'))
 
-            # Simulate an in-session stack-trace alignment marker edit.
-            figure._set_wave_marker_time('stack_a.sac', '6', 820.0)
+            accepted = figure._set_wave_marker_time('stack_a.sac', '6', 820.0)
 
+            self.assertFalse(accepted)
             _, reference_times_after, _ = figure._collect_stack_preview_stream('6', 'stack_a.sac')
-            self.assertAlmostEqual(reference_times_after[0], 820.0)
+            self.assertAlmostEqual(reference_times_after[0], window_align_point)
+
+    def test_stack_trace_non_align_marker_stays_editable(self):
+        # 只读只针对对齐头段本身；其余震相标记仍应能在 stack 道上正常拾取。
+        with tempfile.TemporaryDirectory() as temp_dir:
+            figure, _stack_t6 = self._build_member_marker_fixture(temp_dir)
+
+            self.assertFalse(figure._is_stack_trace_align_marker('stack_a.sac', '8'))
+            accepted = figure._set_wave_marker_time('stack_a.sac', '8', 26.0)
+
+            self.assertTrue(accepted)
+            self.assertAlmostEqual(figure.markers['8']['stack_a.sac'], 26.0)
 
     def test_stack_preview_member_marker_seed_does_not_overwrite_manual_edit(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -5478,7 +5579,8 @@ class PreviewCurveReferenceTests(unittest.TestCase):
 
             write_sac(source_dir / 'member_a.sac', 'AA', 'A', np.linspace(0.0, 1.0, 400), 20.0, 10.0, 12.5)
             write_sac(source_dir / 'member_b.sac', 'BB', 'B', np.linspace(1.0, 0.0, 400), 30.0, 20.0, 15.0)
-            write_sac(stack_dir / 'stack_a.sac', 'DPK', 'STACK', np.ones(300), 25.0, 15.0, 0.0)
+            # 真实的现代帧 stack SAC：长度与窗口一致（50 s），对齐头段位于 -x1=30.0。
+            write_sac(stack_dir / 'stack_a.sac', 'DPK', 'STACK', np.ones(1000), 25.0, 15.0, 30.0)
 
             figure = WaveFigure.__new__(WaveFigure)
             figure.wavepath = str(stack_dir)
@@ -5501,7 +5603,7 @@ class PreviewCurveReferenceTests(unittest.TestCase):
                         'evlo': -27.0,
                         'evdp': 92.0,
                     },
-                    'markers': {'t6': 0.0},
+                    'markers': {'t6': 30.0},
                 }
             }
             figure.ori_sacnames = ['stack_a.sac']
@@ -5521,7 +5623,8 @@ class PreviewCurveReferenceTests(unittest.TestCase):
 
             self.assertEqual([tr.stats.dephasekit_wave_name for tr in waves], ['stack_a.sac', 'member_a.sac', 'member_b.sac'])
             self.assertEqual([tr.stats.dephasekit_stack_preview_role for tr in waves], ['stack', 'member', 'member'])
-            np.testing.assert_allclose(reference_times, np.asarray([0.0, 12.5, 15.0]))
+            # stack 道走窗口相对帧，对齐参考恒为 -x1；成员道保持各自的绝对到时。
+            np.testing.assert_allclose(reference_times, np.asarray([30.0, 12.5, 15.0]))
             self.assertEqual(active_reference_times['member_a.sac'], 12.5)
             self.assertEqual(figure._stack_preview_display_mode(), 'overlay')
             self.assertLessEqual(float(waves[0].stats.sac.gcarc), 30.0)
@@ -5539,7 +5642,7 @@ class PreviewCurveReferenceTests(unittest.TestCase):
             self.assertEqual(applied_window, (-30.0, 20.0))
             self.assertEqual(figure.preview_modes[0][1:], [-30.0, 20.0])
 
-    def test_stack_preview_pierce_points_show_all_stack_sidecars(self):
+    def _pierce_points_figure(self):
         figure = WaveFigure.__new__(WaveFigure)
         figure.stack_mode = True
         figure.ori_sacnames = ['stack_a.sac', 'stack_b.sac']
@@ -5558,24 +5661,48 @@ class PreviewCurveReferenceTests(unittest.TestCase):
                 }
             },
         }
+        return figure
+
+    def test_stack_preview_pierce_points_show_all_means_when_no_active_preview(self):
+        # 没有活动预览时回退：显示全部 group 的均值点。
+        figure = self._pierce_points_figure()
+        figure._current_stack_preview_wave_name = lambda: ''
 
         records = figure._stack_preview_pierce_points()
 
         self.assertEqual([record.wave_name for record in records], ['stack_a.sac', 'stack_b.sac'])
-        self.assertEqual([(record.longitude, record.latitude) for record in records], [(-26.5, -56.5), (-25.5, -55.5)])
+        self.assertEqual(
+            [(record.longitude, record.latitude) for record in records],
+            [(-26.5, -56.5), (-25.5, -55.5)],
+        )
 
+    def test_stack_preview_pierce_points_track_active_group_only(self):
+        # 有活动预览时穿透点面板跟随当前 group，不再固定显示所有 group 的均值，
+        # 否则切换 group 时图上的点不动，无法判断看的是哪一组。
+        figure = self._pierce_points_figure()
+        figure._current_stack_preview_wave_name = lambda: 'stack_a.sac'
+
+        records = figure._stack_preview_pierce_points(include_members=False)
+
+        self.assertEqual([record.wave_name for record in records], ['stack_a.sac'])
+
+    def test_stack_preview_pierce_points_prepend_members_of_active_group(self):
+        # 打开成员点时，成员在前、该 group 均值在后；其它 group 不出现。
+        figure = self._pierce_points_figure()
+        figure._current_stack_preview_wave_name = lambda: 'stack_a.sac'
         figure._load_pierce_points_for_current_event = lambda auto_generate=False: {
             'member_a.sac': SimpleNamespace(longitude=-26.1, latitude=-56.1),
             'member_b.sac': SimpleNamespace(longitude=-26.2, latitude=-56.2),
         }
-        member_records = figure._stack_preview_pierce_points(
+
+        records = figure._stack_preview_pierce_points(
             active_stack_wave_name='stack_a.sac',
             include_members=True,
         )
 
         self.assertEqual(
-            [record.wave_name for record in member_records],
-            ['stack_a.sac', 'stack_b.sac', 'member::member_a.sac', 'member::member_b.sac'],
+            [record.wave_name for record in records],
+            ['member::member_a.sac', 'member::member_b.sac', 'stack_a.sac'],
         )
 
     def test_preview_index_from_pierce_click_matches_stack_member_record_name(self):
