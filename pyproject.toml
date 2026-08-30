@@ -9,7 +9,7 @@ description = "深度震相分析工具包：远震波形分组叠加、前驱�
 readme = "README.md"
 requires-python = ">=3.11"
 license = { file = "LICENSE" }
-authors = [{ name = "<作者姓名 / AUTHOR NAME>", email = "15236702150master@users.noreply.github.com" }]
+authors = [{ name = "Wu Zhenyu (吴震宇)" }]
 keywords = [
     "seismology",
     "depth phase",
@@ -38,8 +38,8 @@ dependencies = [
 test = ["pytest>=8.0"]
 
 [project.urls]
-Homepage = "https://github.com/<用户名>/DePhaseKit"
-Repository = "https://github.com/<用户名>/DePhaseKit"
+Homepage = "https://github.com/15236702150master/DePhaseKit"
+Repository = "https://github.com/15236702150master/DePhaseKit"
 
 [project.scripts]
 dephase = "ppk:main"

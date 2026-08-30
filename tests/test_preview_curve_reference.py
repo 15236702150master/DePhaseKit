@@ -2428,6 +2428,7 @@ class PreviewCurveReferenceTests(unittest.TestCase):
             def _set_geom_center(self):
                 return None
 
+        # 与本文件其余用例一致，由 PROJECT_ROOT 派生，不写死绝对路径。
         event_dir = _PROJ + '/data/pick_jandy/2011_09_03_04_48_58'
         with patch('ppk.exists', return_value=True), patch('ppk.is_stack_event_dir', return_value=False), patch(
             'ppk.MatplotlibWidget', DummyWindow

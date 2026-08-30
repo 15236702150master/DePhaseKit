@@ -9,7 +9,7 @@ type: software
 version: 1.0.0
 date-released: "2026-08-30"
 license: MIT
-repository-code: "https://github.com/<用户名>/DePhaseKit"
+repository-code: "https://github.com/15236702150master/DePhaseKit"
 keywords:
   - seismology
   - depth phase
@@ -17,9 +17,9 @@ keywords:
   - crustal thickness
   - Moho
 authors:
-  - family-names: "<姓>"
-    given-names: "<名>"
-    email: "15236702150master@users.noreply.github.com"
+  - family-names: "Wu"
+    given-names: "Zhenyu"
+    alias: "吴震宇"
     # orcid: "https://orcid.org/0000-0000-0000-0000"
 
 # 方法与结果请引用配套论文（投稿中，见刊后补全卷期页码）。
@@ -27,7 +27,8 @@ preferred-citation:
   type: article
   title: "利用深度震相 pP 前驱波 pmP 约束南桑威奇岛弧地壳厚度"
   authors:
-    - family-names: "<姓>"
-      given-names: "<名>"
+    - family-names: "Wu"
+      given-names: "Zhenyu"
+      alias: "吴震宇"
   year: 2026
   journal: "<期刊名>"

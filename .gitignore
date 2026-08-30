@@ -25,3 +25,6 @@ Thumbs.db
 *.egg-info/
 build/
 dist/
+
+# 内部会话工作笔记，不随公开发布分发
+DSM_FIT_COMPARE_COMPLETION_PLAN.md
