@@ -1,6 +1,9 @@
-# dephasekit
+# DePhaseKit（深度震相分析工具包）
 
-`dephasekit` 是一个用于人工拾取地震波到时的桌面 GUI 工具。它以 SAC 波形目录为输入，支持：
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
+`DePhaseKit`（包名 `dephasekit`，命令 `dephase`，早期名称 `dephasekit`）是一个用于
+深度震相分析的桌面 GUI 工具与计算库。它以 SAC 波形目录为输入，支持：
 
 - 在主拾取窗中逐页查看和修改 `t0-t9`
 - 按理论头段对齐并切换时间窗
@@ -8,8 +11,25 @@
 - 用颜色状态管理两类人工筛选结果
 - 用对比窗快速比较不同滤波频段
 - 把拾取结果、颜色标记写回 SAC 头段
+- 按震中距与方位角分组叠加，在叠加道上拾取深度震相前驱波（pmP / smP）
+- 由 pP–pmP 走时差反演反射点处的地壳厚度，并给出误差预算
+- 跨事件汇集穿透点与厚度，快速定位异常分组
 
 这份 README 以“第一次用的人也能上手”为目标来写。
+
+## 0. 快速开始
+
+```bash
+pip install -e .          # 或按第 3 节用 conda 建环境
+dephase <事件目录>         # 启动 GUI
+
+python examples/01_forward_cross_validation.py   # 不需数据，验证安装
+```
+
+示例说明见 [examples/README.md](examples/README.md)。
+
+**许可证**：MIT，见 [LICENSE](LICENSE)。
+**引用方式**：见 [CITATION.cff](CITATION.cff)；方法与结果请引用配套论文。
 
 ## 1. 它能做什么
 
@@ -29,7 +49,15 @@
 
 - [ppk.py](ppk.py): 主 GUI 入口、按钮、快捷键、命令行参数
 - [WaveFigure.py](WaveFigure.py): 波形绘制、预览窗、对比窗、保存逻辑
+- [forward/](forward/): 正演与厚度反演子包
+  - [forward/taup_moho.py](forward/taup_moho.py): 变莫霍走时正演引擎，
+    含平层解析公式与 TauP 精确射线追踪两条独立路径及其交叉验证
+  - [forward/constants.py](forward/constants.py): 地壳速度与误差预算的
+    默认取值及其文献依据（**改动前请先读该文件**）
+- [stack_system.py](stack_system.py): 叠加分组的存储与元数据管理
+- [examples/](examples/): 三个可运行示例 + 20 条示例波形
 - [environment.yml](environment.yml): Conda 环境依赖
+- [pyproject.toml](pyproject.toml): 包元数据与 pip 安装配置
 - [bp_presets.json](bp_presets.json): 主窗滤波预设列表
 
 ## 3. 环境依赖
@@ -41,13 +69,21 @@ conda env create -f environment.yml
 conda activate dephasekit
 ```
 
+或直接用 pip 安装（含命令行入口 `dephase`）：
+
+```bash
+pip install -e .
+pip install -e '.[test]'   # 需要跑测试时
+```
+
 当前依赖版本：
 
-- Python 3.11
+- Python 3.12
 - matplotlib 3.8.2
 - numpy 1.26.2
 - obspy 1.4.0
 - PySide6 6.7.0
+- scipy >= 1.11
 
 ## 4. 数据要求
 
