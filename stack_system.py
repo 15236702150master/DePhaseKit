@@ -218,7 +218,7 @@ def is_stack_event_dir(event_dir: str | Path) -> bool:
         return True
     except ValueError:
         # Output-side stack metadata can exist for an ordinary source event after
-        # a stack workspace was created.  That should not make `dephasekit <source>`
+        # a stack workspace was created.  That should not make `dpk <source>`
         # open the stack subsystem; only an actual stack workspace path, or the
         # older in-directory marker layout, should select stack mode.
         return _legacy_stack_event_marker_path(event_path).exists()

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """DSM 正演拟合对比子系统 —— 拟合窗 + 组总览窗。
 
-照搬 dephasekit 拾取窗 / 预览窗 的交互范式，做两个大窗：
+照搬 DePhaseKit 拾取窗 / 预览窗 的交互范式，做两个大窗：
 
 * **DSM 拟合窗 (DSMFitCompareWindow)** —— 拾取窗范式。5 台站/页，每行把观测(黑)与
   DSM 理论(红)叠绘在同一 axes 上按震相对齐比较，``n``/``b`` 翻页，参数放左侧 dock。
@@ -65,7 +65,7 @@ from window_geometry import maximize_on_workarea
 
 @dataclass
 class DSMFitContext:
-    """dephasekit 主窗传给 DSM 拟合对比窗的上下文。
+    """DePhaseKit 主窗传给 DSM 拟合对比窗的上下文。
 
     scenario:
       - 'A'      打开的是原始事件目录，且预览/拾取窗有可见集合 → 自动按
@@ -242,7 +242,7 @@ class _ParamPanel(QWidget):
             self.align_src_combo.addItem(label, key)
         form.addRow("对齐来源:", self.align_src_combo)
 
-        # 时窗（默认随对齐震相，与 dephasekit 主程序 _default_xlim_for_marker 一致）
+        # 时窗（默认随对齐震相，与 DePhaseKit 主程序 _default_xlim_for_marker 一致）
         pre, post = self._phase_default_window("t0")
         win_row = QHBoxLayout()
         self.tmin_edit = QLineEdit(str(int(pre)))
@@ -909,7 +909,7 @@ class DSMFitCompareWindow(QMainWindow):
     def showEvent(self, event):  # noqa: N802
         super().showEvent(event)
         if not getattr(self, "_geom_set", False):
-            # 与 dephasekit 主拾取窗一致：最大化铺满工作区（WSLg 回退居中近全屏）。
+            # 与 DePhaseKit 主拾取窗一致：最大化铺满工作区（WSLg 回退居中近全屏）。
             maximize_on_workarea(self, frac=0.98)
             self._geom_set = True
         if not self._auto_plotted:
@@ -1122,6 +1122,6 @@ class DSMGroupOverviewWindow(QMainWindow):
     def showEvent(self, event):  # noqa: N802
         super().showEvent(event)
         if not getattr(self, "_geom_set", False):
-            # 与 dephasekit 主拾取窗一致：最大化铺满工作区（WSLg 回退居中近全屏）。
+            # 与 DePhaseKit 主拾取窗一致：最大化铺满工作区（WSLg 回退居中近全屏）。
             maximize_on_workarea(self, frac=0.98)
             self._geom_set = True

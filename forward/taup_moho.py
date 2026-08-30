@@ -118,7 +118,7 @@ def taup_differential(moho_km: float, evdp_km: float, gcarc_deg: float,
 
 def reference_ray_parameter(evdp_km: float, gcarc_deg: float, label: str = "p",
                            model_name: str = "prem") -> float:
-    """取 pP/sP 的射线参数并转成 s/km（与 dephasekit 既有实现一致）。
+    """取 pP/sP 的射线参数并转成 s/km（与 DePhaseKit 既有实现一致）。
 
     He et al. (2017)：假定 pmP 与 pP 射线参数相同（同 Zandt et al. 1994;
     McGlashan et al. 2008）。

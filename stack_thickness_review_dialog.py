@@ -799,7 +799,7 @@ class ThicknessReviewWindow(QMainWindow):
     def showEvent(self, event):  # noqa: N802
         super().showEvent(event)
         if not getattr(self, "_geom_set", False):
-            # 与 dephasekit 主拾取窗一致：最大化铺满工作区（WSLg 回退居中近全屏）。
+            # 与 DePhaseKit 主拾取窗一致：最大化铺满工作区（WSLg 回退居中近全屏）。
             maximize_on_workarea(self, frac=0.98)
             self._geom_set = True
 
@@ -1156,7 +1156,7 @@ class ThicknessReviewWindow(QMainWindow):
                 edgecolors=edges, linewidths=lws,
                 zorder=5,
             )
-            sc._dephasekit_group_keys = keys  # pick 时按局部 ind 取
+            sc._dpk_group_keys = keys  # pick 时按局部 ind 取
             self._map_scatter_artists.append(sc)
             if self._map_scatter is None:
                 self._map_scatter = sc

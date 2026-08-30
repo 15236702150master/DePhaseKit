@@ -246,7 +246,7 @@ def maximize_on_workarea(widget, frac=0.98):
     """与 ppk 主拾取窗 _set_geom_center 一致的打开方式：showMaximized() 最大化铺满
     工作区；若 WM 忽略最大化（WSLg/XWayland 常见），回退到 frac 比例的居中近全屏几何。
 
-    供 dsm 拟合窗/组总览窗复用，使其窗口大小位置与 dephasekit 主拾取窗一致。返回 True 表示
+    供 dsm 拟合窗/组总览窗复用，使其窗口大小位置与 DePhaseKit 主拾取窗一致。返回 True 表示
     成功设置了几何。"""
     if widget is None:
         return False

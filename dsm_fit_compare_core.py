@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""DSM 拟合对比 —— 数据准备逻辑（dephasekit 自包含，无外部脚本依赖）。
+"""DSM 拟合对比 —— 数据准备逻辑（DePhaseKit 自包含，无外部脚本依赖）。
 
 把原先通过 importlib 按路径加载的外部脚本
 ``codes/process/waveform_fit_compare/plot_observed_vs_synthetic.py`` 里的配对/对齐/
-滤波/归一逻辑搬进 dephasekit 包内，使拟合窗/组总览窗不再依赖包外文件。
+滤波/归一逻辑搬进 DePhaseKit 包内，使拟合窗/组总览窗不再依赖包外文件。
 
 ``build_pairs(args)`` 一次性产出已对齐/滤波/归一的 ``WaveformPair`` 列表：
 ``observed_t/y``、``synthetic_t/y`` 已相对对齐震相（x=0 即震相到时）。
@@ -584,7 +584,7 @@ def build_pairs(args: Namespace) -> tuple[list[WaveformPair], list[str]]:
     """配对观测/理论波形，按震相对齐、滤波、归一，返回 (pairs, skipped)。"""
     observed_map = build_station_map(args.observed_dir, OBSERVED_PATTERNS)
     synthetic_map = build_station_map(args.synthetic_dir, SYNTHETIC_PATTERNS)
-    # 场景A：把观测侧限定为 dephasekit 当前可见集合（NET.STA），只配对"可见 ∩ 有合成"的台站。
+    # 场景A：把观测侧限定为 DePhaseKit 当前可见集合（NET.STA），只配对"可见 ∩ 有合成"的台站。
     filter_keys = getattr(args, "observed_station_keys", None)
     if filter_keys:
         observed_map = {k: v for k, v in observed_map.items() if k in filter_keys}

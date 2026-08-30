@@ -428,7 +428,7 @@ class MatplotlibWidget(QMainWindow):
         self._define_global_shortcuts()
         self.setWindowTitle('DePhaseKit Stack' if self.mpl.wavefig.stack_mode else 'DePhaseKit')
         # print(dirname(__file__))
-        self.setWindowIcon(QIcon(join(dirname(__file__), 'dephasekit.png')))
+        self.setWindowIcon(QIcon(join(dirname(__file__), 'dpk.png')))
         QTimer.singleShot(0, lambda: self.show_status_message('', timeout_ms=0))
         QTimer.singleShot(0, self._populate_event_combo)
         QTimer.singleShot(250, self._warm_default_preview_resources)
@@ -1841,7 +1841,7 @@ class MatplotlibWidget(QMainWindow):
 
         # Same-directory event switcher: prev/next button + dropdown of sibling
         # event directories, so you can move between events without typing an
-        # absolute path each time (dephasekit <abs_path> still works too).
+        # absolute path each time (dpk <abs_path> still works too).
         prev_event_btn = QPushButton("◀")
         prev_event_btn.setFixedWidth(28)
         prev_event_btn.setToolTip('Previous event in this directory')

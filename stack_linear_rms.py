@@ -32,6 +32,9 @@ import obspy
 # --------------------------------------------------------------------------- #
 # SAC header helpers (mirror WaveFigure._sac_attr / _sac_float / _safe_float) #
 # --------------------------------------------------------------------------- #
+# 与 WaveFigure.STACK_NETWORK_CODE 保持一致（此处就地定义以免循环导入）。
+STACK_NETWORK_CODE = 'DPK'
+
 def _safe_float(value):
     try:
         return float(value)
@@ -139,7 +142,7 @@ def write_stack_sac(output_path, template_trace, stack_data, dt, x1, x2,
     stack_trace.stats.delta = float(dt)
     stack_trace.stats.sampling_rate = 1.0 / float(dt)
     try:
-        stack_trace.stats.network = 'DPK'
+        stack_trace.stats.network = STACK_NETWORK_CODE
         stack_trace.stats.station = 'STACK'
     except Exception:
         pass
@@ -162,7 +165,7 @@ def write_stack_sac(output_path, template_trace, stack_data, dt, x1, x2,
         sac.e = window_length
         sac.user0 = float(sta_num)
         sac.kstnm = 'STACK'
-        sac.knetwk = 'DPK'
+        sac.knetwk = STACK_NETWORK_CODE
         for marker_attr in ('t0', 't1', 't2', 't3', 't4', 't5', 't6', 't7', 't8', 't9'):
             setattr(sac, marker_attr, math.nan)
         normalized_align = _normalize_marker_key(align_marker)
@@ -232,13 +235,13 @@ def load_traces(sac_files):
             skipped.append({'file': os.path.basename(path), 'reason': 'empty stream'})
             continue
         tr = st[0]
-        tr.stats.dephasekit_wave_name = os.path.basename(path)
+        tr.stats.dpk_wave_name = os.path.basename(path)
         traces.append(tr)
     return traces, skipped
 
 
 def _wave_name(tr):
-    return getattr(tr.stats, 'dephasekit_wave_name', None) or tr.id
+    return getattr(tr.stats, 'dpk_wave_name', None) or tr.id
 
 
 def main(argv=None):

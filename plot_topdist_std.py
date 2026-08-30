@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Standalone batch renderer for the dephasekit "TopDist std epicentral-distance" plot.
+Standalone batch renderer for the DePhaseKit "TopDist std epicentral-distance" plot.
 
 For each qualifying group-stacked SAC file it reproduces the project's own
 WaveFigure TopDist standard export (stack trace on top + member traces ordered
@@ -28,7 +28,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 import matplotlib.pyplot as plt
 import numpy as np
 
-# Make the dephasekit package importable.
+# Make the DePhaseKit package importable.
 DPK_DIR = os.path.dirname(os.path.abspath(__file__))
 if DPK_DIR not in sys.path:
     sys.path.insert(0, DPK_DIR)
@@ -152,11 +152,11 @@ def save_topdist_std_with_stack_annotations(wf, evtdata, stack_wave_name, align_
     stack_index = 0
     stack_trace = evtdata.wave_ori[0]
     for idx, trace in enumerate(getattr(evtdata, "wave_ori", [])):
-        if getattr(trace.stats, "dephasekit_stack_preview_role", "") == "stack":
+        if getattr(trace.stats, "dpk_stack_preview_role", "") == "stack":
             stack_index = idx
             stack_trace = trace
             break
-    stack_wave_name_from_evt = getattr(stack_trace.stats, "dephasekit_wave_name", "")
+    stack_wave_name_from_evt = getattr(stack_trace.stats, "dpk_wave_name", "")
     if stack_wave_name_from_evt:
         stack_wave_name = stack_wave_name_from_evt
     sidecar = wf._stack_sidecar_for_wave(stack_wave_name)
@@ -167,7 +167,7 @@ def save_topdist_std_with_stack_annotations(wf, evtdata, stack_wave_name, align_
     colors = []
     linewidths = []
     for tr in evtdata.wave_ori:
-        wave_name = getattr(tr.stats, "dephasekit_wave_name", "")
+        wave_name = getattr(tr.stats, "dpk_wave_name", "")
         color, linewidth = wf._preview_standard_wave_style(tr, wave_name)
         colors.append(color)
         linewidths.append(linewidth)

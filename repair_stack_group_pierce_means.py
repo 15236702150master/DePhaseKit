@@ -22,7 +22,7 @@ import os
 import sys
 from pathlib import Path
 
-# Make the dephasekit package importable so PROJECT_ROOT resolves relative to the
+# Make the DePhaseKit package importable so PROJECT_ROOT resolves relative to the
 # script location instead of being hardcoded to an absolute path.
 _DPK_DIR = os.path.dirname(os.path.abspath(__file__))
 if _DPK_DIR not in sys.path:

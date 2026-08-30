@@ -93,6 +93,12 @@ PREVIEW_AMPLITUDE_PRESET_PATH = os.path.join(os.path.dirname(__file__), 'preview
 SAC_KM_PER_DEG = 111.19492
 STACK_TRACE_COLOR = '#8b1a1a'
 STACK_TRACE_LINEWIDTH = 1.5
+# 叠加道在 SAC 头段中的标识：knetwk 写 STACK_NETWORK_CODE，kstnm 写 'STACK'。
+# 识别时两者满足其一即可。早期版本写入的网络代码与现在不同，但 kstnm 一直是
+# 'STACK'，因此旧文件仍能被正确识别为叠加道（已对全部历史叠加文件核验）。
+STACK_NETWORK_CODE = 'DPK'
+STACK_STATION_CODE = 'STACK'
+
 MEMBER_TRACE_COLOR = 'black'
 MEMBER_TRACE_LINEWIDTH = 0.2
 EVENT_DIR_NAME_RE = re.compile(r'^\d{4}_\d{2}_\d{2}_\d{2}_\d{2}_\d{2}$')
@@ -118,7 +124,7 @@ def _force_qt_arrow_cursor_for_figure(fig):
         canvas.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
     except Exception:
         return
-    if getattr(canvas, '_dephasekit_arrow_cursor_forced', False):
+    if getattr(canvas, '_dpk_arrow_cursor_forced', False):
         return
 
     def _keep_arrow_cursor(_cursor=None):
@@ -128,7 +134,7 @@ def _force_qt_arrow_cursor_for_figure(fig):
             pass
 
     canvas.set_cursor = _keep_arrow_cursor
-    canvas._dephasekit_arrow_cursor_forced = True
+    canvas._dpk_arrow_cursor_forced = True
 
 
 def _sac_attr(trace, attr, default=math.nan):
@@ -333,13 +339,13 @@ def plot_waves_only(axr, evtdata, enf, y_values=None):
 
 def _stack_member_visible_mask(evtdata):
     return np.asarray([
-        getattr(tr.stats, 'dephasekit_stack_preview_role', '') != 'stack'
+        getattr(tr.stats, 'dpk_stack_preview_role', '') != 'stack'
         for tr in evtdata.wave_ori
     ], dtype=bool)
 
 
 def _preview_trace_style(trace):
-    if trace is not None and getattr(trace.stats, 'dephasekit_stack_preview_role', '') == 'stack':
+    if trace is not None and getattr(trace.stats, 'dpk_stack_preview_role', '') == 'stack':
         return STACK_TRACE_COLOR, STACK_TRACE_LINEWIDTH, 0.95
     return MEMBER_TRACE_COLOR, MEMBER_TRACE_LINEWIDTH, 1.0
 
@@ -368,7 +374,7 @@ def plot_waves_with_masked_azimuth(axr, axb, evtdata, enf, y_values=None, azimut
     else:
         azimuth_mask = np.asarray(azimuth_mask, dtype=bool)
         scatter = axb.scatter(evtdata.az[azimuth_mask], azimuth_y_values[azimuth_mask], s=7)
-        scatter._dephasekit_preview_full_indices = np.flatnonzero(azimuth_mask)
+        scatter._dpk_preview_full_indices = np.flatnonzero(azimuth_mask)
     return lines, scatter
 
 
@@ -673,8 +679,8 @@ class EvtData():
         self.dt = dt
         self.wave_ori = waveform_stream
         self.is_stack_mode = any(
-            str(getattr(tr.stats, 'network', '')).upper() == 'DPK'
-            or str(getattr(tr.stats, 'station', '')).upper() == 'STACK'
+            str(getattr(tr.stats, 'network', '')).upper() == STACK_NETWORK_CODE
+            or str(getattr(tr.stats, 'station', '')).upper() == STACK_STATION_CODE
             for tr in self.wave_ori
         )
         self.reference_t = r_tlst
@@ -1314,7 +1320,7 @@ class WaveFigure(Figure):
             waves, _t_lst, _reference_times = self._collect_preview_display_stream(tmarker)
             if not getattr(self, 'stack_mode', False) and len(waves) > 0:
                 metadata = [
-                    {'wave_name': getattr(tr.stats, 'dephasekit_wave_name', '')}
+                    {'wave_name': getattr(tr.stats, 'dpk_wave_name', '')}
                     for tr in waves
                 ]
                 self._maybe_generate_current_preview_pierce_cache(metadata)
@@ -1403,9 +1409,9 @@ class WaveFigure(Figure):
         return float(marker_time)
 
     def _prepare_stack_preview_trace(self, trace, wave_name, role, stack_wave_name):
-        trace.stats.dephasekit_wave_name = str(wave_name)
-        trace.stats.dephasekit_stack_preview_role = str(role)
-        trace.stats.dephasekit_stack_wave_name = str(stack_wave_name)
+        trace.stats.dpk_wave_name = str(wave_name)
+        trace.stats.dpk_stack_preview_role = str(role)
+        trace.stats.dpk_stack_wave_name = str(stack_wave_name)
         target_fs = 1.0 / self.dt
         if abs(trace.stats.sampling_rate - target_fs) > 1e-3:
             trace.resample(target_fs, window="hann")
@@ -1688,7 +1694,7 @@ class WaveFigure(Figure):
             stack_wave_name,
         )
         stack_trace = self._sanitize_stack_trace_markers(stack_trace, stack_wave_name)
-        stack_trace.stats.dephasekit_stack_member_count = len(member_traces)
+        stack_trace.stats.dpk_stack_member_count = len(member_traces)
 
         member_distances = [
             _sac_float(member_trace, 'gcarc', math.nan)
@@ -1944,7 +1950,7 @@ class WaveFigure(Figure):
 
     def _trace_from_runtime_dir(self, wave_name):
         tr = obspy.read(self._runtime_wave_path(wave_name))[0]
-        tr.stats.dephasekit_wave_name = wave_name
+        tr.stats.dpk_wave_name = wave_name
         if self.stack_mode:
             self._apply_stack_sidecar_to_trace(tr, wave_name)
         return tr
@@ -1956,12 +1962,12 @@ class WaveFigure(Figure):
         if wave_index < 0 or wave_index >= len(getattr(self, 'wave', [])):
             return None
         tr = self.wave[wave_index].copy()
-        tr.stats.dephasekit_wave_name = wave_name
+        tr.stats.dpk_wave_name = wave_name
         return tr
 
     def _trace_from_source_event_dir(self, wave_name):
         tr = obspy.read(self._source_wave_path(wave_name))[0]
-        tr.stats.dephasekit_wave_name = wave_name
+        tr.stats.dpk_wave_name = wave_name
         return tr
 
     def _apply_stack_sidecar_to_trace(self, trace, wave_name):
@@ -3187,7 +3193,7 @@ class WaveFigure(Figure):
         stack_trace.stats.delta = float(self.dt)
         stack_trace.stats.sampling_rate = 1.0 / float(self.dt)
         try:
-            stack_trace.stats.network = 'DPK'
+            stack_trace.stats.network = STACK_NETWORK_CODE
             stack_trace.stats.station = 'STACK'
         except Exception:
             pass
@@ -3222,7 +3228,7 @@ class WaveFigure(Figure):
             sac.e = window_length
             sac.user0 = float(evtdata.sta_num)
             sac.kstnm = 'STACK'
-            sac.knetwk = 'DPK'
+            sac.knetwk = STACK_NETWORK_CODE
             for marker_attr in ('t0', 't1', 't2', 't3', 't4', 't5', 't6', 't7', 't8', 't9'):
                 setattr(sac, marker_attr, math.nan)
             normalized_align = self._normalize_marker_key(align_marker)
@@ -3312,13 +3318,13 @@ class WaveFigure(Figure):
                 align_time=stack_align_time,
             )
             valid_wave_names = [
-                getattr(evtdata.wave_ori[idx].stats, 'dephasekit_wave_name', '')
+                getattr(evtdata.wave_ori[idx].stats, 'dpk_wave_name', '')
                 for idx in valid_indices
                 if idx < len(evtdata.wave_ori)
             ]
             skipped_zero = [
                 {
-                    'wave_name': getattr(evtdata.wave_ori[row_index].stats, 'dephasekit_wave_name', ''),
+                    'wave_name': getattr(evtdata.wave_ori[row_index].stats, 'dpk_wave_name', ''),
                     'reason': reason,
                 }
                 for row_index, reason in skipped_reasons
@@ -3335,7 +3341,7 @@ class WaveFigure(Figure):
                 for row_index, trace in enumerate(evtdata.wave_ori):
                     if row_index >= len(row_shifts) or row_shifts[row_index] is None:
                         continue
-                    wave_name = getattr(trace.stats, 'dephasekit_wave_name', '')
+                    wave_name = getattr(trace.stats, 'dpk_wave_name', '')
                     record = {
                         'wave_name': wave_name,
                         'input_row': int(row_index),
@@ -3505,7 +3511,7 @@ class WaveFigure(Figure):
             return math.nan
         trace_by_wave_name = {}
         for trace in getattr(evtdata, 'wave_ori', []) if evtdata is not None else []:
-            wave_name = getattr(trace.stats, 'dephasekit_wave_name', '')
+            wave_name = getattr(trace.stats, 'dpk_wave_name', '')
             if wave_name:
                 trace_by_wave_name[str(wave_name)] = trace
         values = []
@@ -3991,7 +3997,7 @@ class WaveFigure(Figure):
                 )
             artists.append(text_artist)
             label_artists[group_number] = text_artist
-        setattr(axp, '_dephasekit_group_label_artists', label_artists)
+        setattr(axp, '_dpk_group_label_artists', label_artists)
         return artists
 
     def _draw_preview_pierce_panel(self, axp, evtdata, pierce_records):
@@ -4821,7 +4827,7 @@ class WaveFigure(Figure):
         visible_phase_keys = []
         for marker_key in phase_keys:
             for tr in evtdata.wave_ori:
-                wave_name = getattr(tr.stats, 'dephasekit_wave_name', '')
+                wave_name = getattr(tr.stats, 'dpk_wave_name', '')
                 relative_time = self._preview_relative_phase_time(
                     align_marker_key,
                     marker_key,
@@ -4851,7 +4857,7 @@ class WaveFigure(Figure):
         # Stack trace stands out in red/bold on standard (gcarc/az) plots, like
         # in the live preview; member traces keep their per-state color and the
         # thin default width.
-        if getattr(trace.stats, 'dephasekit_stack_preview_role', '') == 'stack':
+        if getattr(trace.stats, 'dpk_stack_preview_role', '') == 'stack':
             return STACK_TRACE_COLOR, STACK_TRACE_LINEWIDTH
         return self._preview_standard_wave_color(wave_name), 0.35
 
@@ -5117,7 +5123,7 @@ class WaveFigure(Figure):
                     skipped_wave_files.append({'wave_name': wave_name, 'reason': str(exc)})
                     continue
                 raise
-            tr.stats.dephasekit_wave_name = wave_name
+            tr.stats.dpk_wave_name = wave_name
             if self.stack_mode:
                 self._apply_stack_sidecar_to_trace(tr, wave_name)
             st += tr
@@ -5127,7 +5133,7 @@ class WaveFigure(Figure):
             print('No valid waveforms in {}'.format(self.wavepath))
             sys.exit(1)
         self.ori_sacnames = np.array([
-            str(getattr(tr.stats, 'dephasekit_wave_name', valid_wave_names[idx]))
+            str(getattr(tr.stats, 'dpk_wave_name', valid_wave_names[idx]))
             for idx, tr in enumerate(st)
         ])
         self.stack_skipped_wave_files = skipped_wave_files
@@ -6044,7 +6050,7 @@ class WaveFigure(Figure):
         records = self._load_pierce_points_for_current_event(auto_generate=True)
         pierce_records = []
         for tr in getattr(evtdata, 'wave_ori', []):
-            wave_name = getattr(tr.stats, 'dephasekit_wave_name', '')
+            wave_name = getattr(tr.stats, 'dpk_wave_name', '')
             if not wave_name:
                 continue
             record = records.get(wave_name)
@@ -6767,7 +6773,7 @@ class WaveFigure(Figure):
 
         marker_keys = [str(idx) for idx in range(10)]
         user_keys = ('user1', 'user2', 'user3', 'user4', 'user5')
-        temp_parent = tempfile.mkdtemp(prefix='dephasekit_restore_', dir='/tmp')
+        temp_parent = tempfile.mkdtemp(prefix='dpk_restore_', dir='/tmp')
         temp_event_dir = os.path.join(temp_parent, os.path.basename(self.wavepath.rstrip(os.sep)))
         os.makedirs(temp_event_dir, exist_ok=True)
 
@@ -7800,7 +7806,7 @@ class WaveFigure(Figure):
             return {}
         reference_times = {}
         for wave_index, tr in enumerate(evtdata.wave_ori):
-            wave_name = getattr(tr.stats, 'dephasekit_wave_name', '')
+            wave_name = getattr(tr.stats, 'dpk_wave_name', '')
             if not wave_name or wave_index >= len(evtdata.reference_t):
                 continue
             try:
@@ -8681,10 +8687,10 @@ class WaveFigure(Figure):
         )
 
     def _marker_artist_gid(self, wave_name, marker_key):
-        return f"dephasekit-marker:{marker_key}:{wave_name}"
+        return f"dpk-marker:{marker_key}:{wave_name}"
 
     def _crustal_text_artist_gid(self, wave_name):
-        return f"dephasekit-crustal-text:{wave_name}"
+        return f"dpk-crustal-text:{wave_name}"
 
     def _marker_affects_crustal_text(self, marker_key):
         return str(marker_key) in {'5', '6', '8', '9'}
@@ -9029,9 +9035,9 @@ class WaveFigure(Figure):
             waves, t_lst, reference_times = self._collect_preview_display_stream(tmarker, fig=fig)
         else:
             reference_times = {
-                getattr(tr.stats, 'dephasekit_wave_name', ''): float(reference_time)
+                getattr(tr.stats, 'dpk_wave_name', ''): float(reference_time)
                 for tr, reference_time in zip(waves, t_lst)
-                if getattr(tr.stats, 'dephasekit_wave_name', '')
+                if getattr(tr.stats, 'dpk_wave_name', '')
             }
         fig._preview_reference_times = reference_times
         fig._preview_reference_tmarker = self._normalize_marker_key(tmarker)
@@ -9210,14 +9216,14 @@ class WaveFigure(Figure):
         )
         metadata = []
         for tr in evtdata.wave_ori:
-            wave_name = getattr(tr.stats, 'dephasekit_wave_name', '')
+            wave_name = getattr(tr.stats, 'dpk_wave_name', '')
             metadata.append({
                 'name': f"{tr.stats.network}.{tr.stats.station}",
                 'gcarc': _sac_float(tr, 'gcarc', 0.0),
                 'az': _sac_float(tr, 'az', 0.0),
                 'wave_name': wave_name,
-                'stack_preview_role': getattr(tr.stats, 'dephasekit_stack_preview_role', ''),
-                'stack_preview_wave_name': getattr(tr.stats, 'dephasekit_stack_wave_name', ''),
+                'stack_preview_role': getattr(tr.stats, 'dpk_stack_preview_role', ''),
+                'stack_preview_wave_name': getattr(tr.stats, 'dpk_stack_wave_name', ''),
                 'stack_summary': self._stack_wave_summary(wave_name),
                 'is_marked_m': self._is_preview_purple_wave(wave_name),
                 'is_user1_marked': self._is_user1_wave(wave_name),
@@ -10275,7 +10281,7 @@ class WaveFigure(Figure):
             )
         scatter_artist = preview_state.get('scatter')
         if scatter_artist is not None:
-            full_indices = getattr(scatter_artist, '_dephasekit_preview_full_indices', None)
+            full_indices = getattr(scatter_artist, '_dpk_preview_full_indices', None)
             if full_indices is None:
                 scatter_artist.set_facecolors([mcolors.to_rgba(color) for color in scatter_colors])
                 scatter_artist.set_edgecolors([mcolors.to_rgba(color) for color in scatter_colors])
@@ -10338,7 +10344,7 @@ class WaveFigure(Figure):
                 else:
                     highlight_scatter.set_offsets(np.empty((0, 2)))
             axes = pierce_state.get('axes')
-            label_artists = getattr(axes, '_dephasekit_group_label_artists', {}) if axes is not None else {}
+            label_artists = getattr(axes, '_dpk_group_label_artists', {}) if axes is not None else {}
             selected_group_numbers = {
                 self._group_number_from_record(record)
                 for record in selected_records
@@ -11580,7 +11586,7 @@ class WaveFigure(Figure):
             phase_times = []
             phase_y = []
             for wave_index, tr in enumerate(evtdata.wave_ori):
-                wave_name = getattr(tr.stats, 'dephasekit_wave_name', '')
+                wave_name = getattr(tr.stats, 'dpk_wave_name', '')
                 relative_time = self._preview_relative_phase_time(
                     align_marker_key,
                     marker_key,
@@ -11734,7 +11740,7 @@ class WaveFigure(Figure):
             phase_times = []
             phase_y = []
             for wave_index, tr in enumerate(evtdata.wave_ori):
-                wave_name = getattr(tr.stats, 'dephasekit_wave_name', '')
+                wave_name = getattr(tr.stats, 'dpk_wave_name', '')
                 relative_time = self._preview_relative_phase_time(
                     align_marker_key,
                     marker_key,
@@ -11776,7 +11782,7 @@ class WaveFigure(Figure):
         colors = []
         linewidths = []
         for tr in evtdata.wave_ori:
-            wave_name = getattr(tr.stats, 'dephasekit_wave_name', '')
+            wave_name = getattr(tr.stats, 'dpk_wave_name', '')
             color, linewidth = self._preview_standard_wave_style(tr, wave_name)
             colors.append(color)
             linewidths.append(linewidth)
@@ -12440,12 +12446,12 @@ class WaveFigure(Figure):
                     'name': f"{tr.stats.network}.{tr.stats.station}",
                     'gcarc': _sac_float(tr, 'gcarc', 0.0),
                     'baz': _sac_float(tr, 'baz', 0.0),
-                    'wave_name': getattr(tr.stats, 'dephasekit_wave_name', ''),
-                    'stack_summary': self._stack_wave_summary(getattr(tr.stats, 'dephasekit_wave_name', '')),
-                    'is_marked_m': self._is_preview_purple_wave(getattr(tr.stats, 'dephasekit_wave_name', '')),
-                    'is_user1_marked': self._is_user1_wave(getattr(tr.stats, 'dephasekit_wave_name', '')),
-                    'is_user5_marked': self._is_user5_wave(getattr(tr.stats, 'dephasekit_wave_name', '')),
-                    'is_user4_marked': self._is_user4_wave(getattr(tr.stats, 'dephasekit_wave_name', '')),
+                    'wave_name': getattr(tr.stats, 'dpk_wave_name', ''),
+                    'stack_summary': self._stack_wave_summary(getattr(tr.stats, 'dpk_wave_name', '')),
+                    'is_marked_m': self._is_preview_purple_wave(getattr(tr.stats, 'dpk_wave_name', '')),
+                    'is_user1_marked': self._is_user1_wave(getattr(tr.stats, 'dpk_wave_name', '')),
+                    'is_user5_marked': self._is_user5_wave(getattr(tr.stats, 'dpk_wave_name', '')),
+                    'is_user4_marked': self._is_user4_wave(getattr(tr.stats, 'dpk_wave_name', '')),
                 } for tr in evtdata.wave_ori]
             y_values, y_ticks, y_ticklabels, ylabel = self._preview_y_axis_config(evtdata, order='gcarc')
             lines = plot_waves_only(axes[idx], evtdata, enf=1, y_values=y_values)

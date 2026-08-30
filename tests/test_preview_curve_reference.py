@@ -998,10 +998,10 @@ class PreviewCurveReferenceTests(unittest.TestCase):
             )
 
             trace_a = Trace(data=np.asarray([1.0, 2.0, 3.0], dtype=np.float32))
-            trace_a.stats.dephasekit_wave_name = 'waveA.sac'
+            trace_a.stats.dpk_wave_name = 'waveA.sac'
             trace_a.stats.sac = obspy.core.AttribDict(t7=8.0)
             trace_b = Trace(data=np.asarray([0.0, 0.0, 0.0], dtype=np.float32))
-            trace_b.stats.dephasekit_wave_name = 'waveB.sac'
+            trace_b.stats.dpk_wave_name = 'waveB.sac'
             trace_b.stats.sac = obspy.core.AttribDict(t7=math.nan)
             evtdata = SimpleNamespace(
                 data=np.asarray([[1.0, 2.0, 3.0], [0.0, 0.0, 0.0]], dtype=float),
@@ -1829,7 +1829,7 @@ class PreviewCurveReferenceTests(unittest.TestCase):
             figure._write_preview_stack_sac = lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError('boom'))
 
             trace_a = Trace(data=np.asarray([1.0, 2.0, 3.0], dtype=np.float32))
-            trace_a.stats.dephasekit_wave_name = 'waveA.sac'
+            trace_a.stats.dpk_wave_name = 'waveA.sac'
             evtdata = SimpleNamespace(
                 data=np.asarray([[1.0, 2.0, 3.0]], dtype=float),
                 time_axis=np.asarray([-1.0, 0.0, 1.0], dtype=float),
@@ -3643,7 +3643,7 @@ class PreviewCurveReferenceTests(unittest.TestCase):
         figure._preview_marker_reference_time = lambda marker_key, wave_name: math.nan
 
         trace = Trace(data=np.asarray([1.0, 2.0], dtype=np.float32))
-        trace.stats.dephasekit_wave_name = 'wave_a.sac'
+        trace.stats.dpk_wave_name = 'wave_a.sac'
         trace.stats.sac = obspy.core.AttribDict(t5=math.nan, t6=math.nan, t7=math.nan)
         evtdata = SimpleNamespace(wave_ori=[trace])
 
@@ -3731,7 +3731,7 @@ class PreviewCurveReferenceTests(unittest.TestCase):
             va='bottom',
             bbox={'facecolor': 'white', 'edgecolor': '#00aa00', 'linewidth': 0.9, 'alpha': 0.92},
         )
-        setattr(axp, '_dephasekit_group_label_artists', {1: label_artist})
+        setattr(axp, '_dpk_group_label_artists', {1: label_artist})
         preview_state = {
             'lines': [DummyLine([0.0], [0.0])],
             'metadata': [{'wave_name': 'stack_group1.sac', 'name': 'grp1', 'gcarc': 10.0, 'az': 20.0}],
@@ -3940,14 +3940,14 @@ class PreviewCurveReferenceTests(unittest.TestCase):
         trace.stats.station = 'STACK'
         trace.stats.delta = 0.02
         trace.stats.sac = obspy.core.AttribDict(gcarc=88.1, baz=212.4)
-        trace.stats.dephasekit_wave_name = 'stack1.sac'
+        trace.stats.dpk_wave_name = 'stack1.sac'
 
         compare_metadata = [{
             'name': f"{trace.stats.network}.{trace.stats.station}",
             'gcarc': float(trace.stats.sac.gcarc),
             'baz': float(trace.stats.sac.baz),
-            'wave_name': getattr(trace.stats, 'dephasekit_wave_name', ''),
-            'stack_summary': figure._stack_wave_summary(getattr(trace.stats, 'dephasekit_wave_name', '')),
+            'wave_name': getattr(trace.stats, 'dpk_wave_name', ''),
+            'stack_summary': figure._stack_wave_summary(getattr(trace.stats, 'dpk_wave_name', '')),
         }]
 
         self.assertEqual(compare_metadata[0]['stack_summary'], 'group:group2 | linear | rms | N=27')
@@ -4022,7 +4022,7 @@ class PreviewCurveReferenceTests(unittest.TestCase):
         }
         figure._load_pierce_points_for_current_event = lambda auto_generate=True, phase=None, model=None: {}
         trace = Trace(data=np.asarray([1.0, 2.0], dtype=np.float32))
-        trace.stats.dephasekit_wave_name = 'stack1.sac'
+        trace.stats.dpk_wave_name = 'stack1.sac'
         evtdata = SimpleNamespace(wave_ori=[trace])
 
         records = figure._standard_export_pierce_records_from_evtdata(evtdata)
@@ -5214,7 +5214,7 @@ class PreviewCurveReferenceTests(unittest.TestCase):
 
             self.assertEqual(list(figure.ori_sacnames), ['stack_group1.sac', 'stack_group2.sac'])
             self.assertEqual(
-                [tr.stats.dephasekit_wave_name for tr in figure.wave],
+                [tr.stats.dpk_wave_name for tr in figure.wave],
                 ['stack_group1.sac', 'stack_group2.sac'],
             )
             self.assertAlmostEqual(figure.markers['6']['stack_group1.sac'], 11.0)
@@ -5623,8 +5623,8 @@ class PreviewCurveReferenceTests(unittest.TestCase):
 
             waves, reference_times, active_reference_times = figure._collect_stack_preview_stream('6', 'stack_a.sac')
 
-            self.assertEqual([tr.stats.dephasekit_wave_name for tr in waves], ['stack_a.sac', 'member_a.sac', 'member_b.sac'])
-            self.assertEqual([tr.stats.dephasekit_stack_preview_role for tr in waves], ['stack', 'member', 'member'])
+            self.assertEqual([tr.stats.dpk_wave_name for tr in waves], ['stack_a.sac', 'member_a.sac', 'member_b.sac'])
+            self.assertEqual([tr.stats.dpk_stack_preview_role for tr in waves], ['stack', 'member', 'member'])
             # stack 道走窗口相对帧，对齐参考恒为 -x1；成员道保持各自的绝对到时。
             np.testing.assert_allclose(reference_times, np.asarray([30.0, 12.5, 15.0]))
             self.assertEqual(active_reference_times['member_a.sac'], 12.5)
@@ -5637,7 +5637,7 @@ class PreviewCurveReferenceTests(unittest.TestCase):
             self.assertGreater(float(top_waves[0].stats.sac.gcarc), 30.0)
 
             evtdata = EvtData(top_waves, top_reference_times, x1=-1.0, x2=1.0, dt=0.05)
-            self.assertEqual(evtdata.wave_ori[-1].stats.dephasekit_wave_name, 'stack_a.sac')
+            self.assertEqual(evtdata.wave_ori[-1].stats.dpk_wave_name, 'stack_a.sac')
             self.assertEqual(_stack_member_visible_mask(evtdata).tolist(), [True, True, False])
 
             applied_window = figure._apply_stack_preview_window(0, 'stack_a.sac')
@@ -5898,16 +5898,16 @@ class PreviewCurveReferenceTests(unittest.TestCase):
 
         self.assertEqual(len(lines), 3)
         self.assertEqual(scatter.get_offsets().shape[0], 2)
-        self.assertEqual(scatter._dephasekit_preview_full_indices.tolist(), [0, 2])
+        self.assertEqual(scatter._dpk_preview_full_indices.tolist(), [0, 2])
 
     def test_stack_preview_line_uses_distinct_deep_red_style(self):
         fig = Figure()
         axr = fig.add_subplot(1, 2, 1)
         axb = fig.add_subplot(1, 2, 2)
         stack_trace = Trace(data=np.asarray([1.0], dtype=np.float32))
-        stack_trace.stats.dephasekit_stack_preview_role = 'stack'
+        stack_trace.stats.dpk_stack_preview_role = 'stack'
         member_trace = Trace(data=np.asarray([1.0], dtype=np.float32))
-        member_trace.stats.dephasekit_stack_preview_role = 'member'
+        member_trace.stats.dpk_stack_preview_role = 'member'
         evtdata = SimpleNamespace(
             sta_num=2,
             data=np.asarray([
@@ -5952,7 +5952,7 @@ class PreviewCurveReferenceTests(unittest.TestCase):
         collect_calls = []
         load_calls = []
         figure._collect_preview_display_stream = lambda tmarker: collect_calls.append(tmarker) or (
-            [SimpleNamespace(stats=SimpleNamespace(dephasekit_wave_name='wave_a.sac'))],
+            [SimpleNamespace(stats=SimpleNamespace(dpk_wave_name='wave_a.sac'))],
             np.asarray([12.0], dtype=float),
             {'wave_a.sac': 12.0},
         )
@@ -6053,5 +6053,42 @@ class PreviewCurveReferenceTests(unittest.TestCase):
 
         preview_trace = figure._filtered_trace_for_preview('wave_a.sac')
 
-        self.assertEqual(getattr(preview_trace.stats, 'dephasekit_wave_name', ''), 'wave_a.sac')
+        self.assertEqual(getattr(preview_trace.stats, 'dpk_wave_name', ''), 'wave_a.sac')
         np.testing.assert_allclose(preview_trace.data, np.asarray([1.0, 2.0, 3.0], dtype=float))
+
+
+class LegacyStackFileRecognitionTests(unittest.TestCase):
+    """早期版本写出的叠加文件其 knetwk 与当前代码不同，必须仍被识别为叠加道。
+
+    识别失败的后果不是报错而是静默降级：叠加道会被当成普通台站道，
+    对齐帧、成员联动与厚度标注全部失效，且不易察觉。
+    识别依赖 kstnm='STACK' 这条路径——历史文件的 kstnm 一直是它。
+    """
+
+    @staticmethod
+    def _evtdata(network, station):
+        trace = Trace(data=np.ones(400, dtype=np.float32))
+        trace.stats.network = network
+        trace.stats.station = station
+        trace.stats.delta = 0.05
+        trace.stats.sac = obspy.core.AttribDict(
+            b=0.0, e=399 * 0.05, gcarc=30.0, az=10.0, baz=190.0
+        )
+        return EvtData(
+            obspy.Stream([trace]), np.asarray([10.0]), x1=-1.0, x2=1.0, dt=0.05
+        )
+
+    def test_current_network_code_is_recognised(self):
+        self.assertTrue(self._evtdata('DPK', 'NOTSTACK').is_stack_mode)
+
+    def test_legacy_network_code_still_recognised_via_station_code(self):
+        # 旧文件的网络代码是别的值，但台站代码一直是 STACK。
+        self.assertTrue(self._evtdata('OLDCODE', 'STACK').is_stack_mode)
+
+    def test_ordinary_trace_is_not_stack(self):
+        self.assertFalse(self._evtdata('IU', 'ANMO').is_stack_mode)
+
+    def test_writer_codes_are_exposed_as_constants(self):
+        from WaveFigure import STACK_NETWORK_CODE, STACK_STATION_CODE
+        self.assertEqual(STACK_NETWORK_CODE, 'DPK')
+        self.assertEqual(STACK_STATION_CODE, 'STACK')

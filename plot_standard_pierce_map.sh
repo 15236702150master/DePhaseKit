@@ -66,7 +66,7 @@ RELIEF_TO_USE="$RELIEF_GRID"
 if [ -f "$RELIEF_GRID" ] && [ "$(stat -c%s "$RELIEF_GRID" 2>/dev/null || echo 0)" -gt 100000000 ]; then
     region_tag=$(echo "$REGION" | tr '/' '_')
     grid_hash=$(stat -c '%Y_%s' "$RELIEF_GRID" 2>/dev/null | tr '\n' '_')
-    CACHED_CROP="${TMPDIR:-/tmp}/dephasekit_relief_${grid_hash}_${region_tag}.grd"
+    CACHED_CROP="${TMPDIR:-/tmp}/dpk_relief_${grid_hash}_${region_tag}.grd"
     if [ ! -f "$CACHED_CROP" ]; then
         gmt grdcut "$RELIEF_GRID" -R"$REGION" -G"$CACHED_CROP" 2>/dev/null || true
     fi
@@ -94,10 +94,10 @@ gmt begin "$OUTPUT_PREFIX" png
     # invocations for 100 traces) makes the export crawl because each call
     # round-trips through the PostScript pipe. Group points by their status color
     # and draw each color in a single gmt plot call instead.
-    TMP_BASE="$OUTPUT_DIR/.dephasekit_pierce_base.tmp"
+    TMP_BASE="$OUTPUT_DIR/.dpk_pierce_base.tmp"
     : > "$TMP_BASE"
     declare -A CORE_BY_COLOR
-    FLIP_COORDS="$OUTPUT_DIR/.dephasekit_pierce_flip.tmp"
+    FLIP_COORDS="$OUTPUT_DIR/.dpk_pierce_flip.tmp"
     : > "$FLIP_COORDS"
     while read -r lon lat color is_flip; do
         [ -n "${lon:-}" ] || continue
