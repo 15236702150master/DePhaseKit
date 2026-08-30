@@ -37,6 +37,7 @@ from WaveFigure import (  # noqa: E402
     plot_waves_with_masked_azimuth,
 )
 from ppk import MatplotlibWidget  # noqa: E402
+from forward.constants import DEFAULT_CRUST_VP  # noqa: E402
 from stack_crustal_thickness import calculate_pp_pmp_thickness  # noqa: E402
 from stack_thickness_review_dialog import (  # noqa: E402
     OUTLIER_THRESHOLD,
@@ -2388,7 +2389,7 @@ class PreviewCurveReferenceTests(unittest.TestCase):
         with patch('WaveFigure.fetch_taup_ray_parameter', return_value=14.0):
             summary = figure._stack_crustal_summary(wave_name)
 
-        expected = calculate_pp_pmp_thickness(7.0, 5.8, 14.0)
+        expected = calculate_pp_pmp_thickness(7.0, DEFAULT_CRUST_VP, 14.0)
         self.assertAlmostEqual(summary['pp_pmp_km'], expected, places=6)
 
     def test_open_workspace_window_uses_sac_suffix_for_source_event_dirs(self):

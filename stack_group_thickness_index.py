@@ -32,6 +32,7 @@ from pierce_point_cache import (
     load_pierce_points,
     pierce_file_path,
 )
+from forward.constants import DEFAULT_CRUST_VP, DEFAULT_CRUST_VS
 from stack_crustal_thickness import (
     DEFAULT_TAUP_BIN,
     calculate_pp_pmp_thickness,
@@ -201,13 +202,13 @@ def _thickness_for_payload(
             ray_param = fetch_taup_ray_parameter(
                 taup_bin, evdp_km=evdp, gcarc_deg=gcarc, phase="pP", model="prem"
             )
-            return calculate_pp_pmp_thickness(t6 - t8, 5.8, ray_param)
+            return calculate_pp_pmp_thickness(t6 - t8, DEFAULT_CRUST_VP, ray_param)
         if phase_kind == "sP" and t5 is not None and t9 is not None:
             ray_param = fetch_taup_ray_parameter(
                 taup_bin, evdp_km=evdp, gcarc_deg=gcarc, phase="sP", model="prem"
             )
             return calculate_sp_smp_thickness(
-                t5 - t9, 5.8, 3.2, ray_param
+                t5 - t9, DEFAULT_CRUST_VP, DEFAULT_CRUST_VS, ray_param
             )
     except Exception:
         return None

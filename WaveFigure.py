@@ -56,6 +56,7 @@ from pierce_point_cache import (
     pierce_file_path,
     relative_event_path,
 )
+from forward.constants import DEFAULT_CRUST_VP, DEFAULT_CRUST_VS
 from stack_crustal_thickness import (
     DEFAULT_TAUP_BIN as DEFAULT_STACK_TAUP_BIN,
     calculate_pp_pmp_thickness,
@@ -1085,7 +1086,7 @@ class WaveFigure(Figure):
         if not math.isnan(t6) and not math.isnan(t8):
             try:
                 ray_param_pp = self._stack_crustal_ray_parameter(evdp, gcarc, phase='pP', model='prem')
-                thickness_pp = calculate_pp_pmp_thickness(t6 - t8, 5.8, ray_param_pp)
+                thickness_pp = calculate_pp_pmp_thickness(t6 - t8, DEFAULT_CRUST_VP, ray_param_pp)
                 if not math.isnan(thickness_pp) and thickness_pp > 0.0:
                     summary['pp_pmp_km'] = float(thickness_pp)
             except Exception:
@@ -1094,7 +1095,7 @@ class WaveFigure(Figure):
         if not math.isnan(t5) and not math.isnan(t9):
             try:
                 ray_param_sp = self._stack_crustal_ray_parameter(evdp, gcarc, phase='sP', model='prem')
-                thickness_sp = calculate_sp_smp_thickness(t5 - t9, 5.8, 3.2, ray_param_sp)
+                thickness_sp = calculate_sp_smp_thickness(t5 - t9, DEFAULT_CRUST_VP, DEFAULT_CRUST_VS, ray_param_sp)
                 if not math.isnan(thickness_sp) and thickness_sp > 0.0:
                     summary['sp_smp_km'] = float(thickness_sp)
             except Exception:

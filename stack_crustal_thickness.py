@@ -5,11 +5,15 @@ import re
 import subprocess
 from pathlib import Path
 
+from forward.constants import DEFAULT_CRUST_VP, DEFAULT_CRUST_VS
 from pierce_point_cache import PROJECT_ROOT
 
-# 与 calucate_xmP.py 一致：单条波形厚度计算用写死的 Vp/Vs。
-SINGLE_TRACE_VP = 5.8
-SINGLE_TRACE_VS = 3.2
+# 单条波形厚度计算的默认速度。与分组叠加口径统一到 forward.constants
+# （Vp = 6.0 km/s，Allen 1966 斯科舍海折射实测），依据见该文件。
+# 早期实现把 5.8（PREM 全球平均上地壳）写死在函数体内，并忽略调用方传入的
+# 速度，导致界面显示的厚度与论文口径系统性偏低约 4%。
+SINGLE_TRACE_VP = DEFAULT_CRUST_VP
+SINGLE_TRACE_VS = DEFAULT_CRUST_VS
 # obspy 路径首点 ray param 单位为 s/rad，转换到 s/km 用 /57.29578/111.19492。
 _RAD2DEG = 57.29578
 _DEG2KM = 111.19492
@@ -72,10 +76,12 @@ def fetch_taup_ray_parameter(
     raise ValueError("Unable to parse TauP ray parameter")
 
 
-def calculate_pp_pmp_thickness(time_diff, vp_crust, ray_param):
-    # 与 calucate_xmP.py 一致：Vp/Vs 写死，射线参数单位转换用 /57.29578/111.19492。
-    # vp_crust / vs_crust 参数仅为兼容旧调用，实际不使用。
-    vp = 5.8
+def calculate_pp_pmp_thickness(time_diff, vp_crust=DEFAULT_CRUST_VP, ray_param=None):
+    """pP-pmP 走时差反算地壳厚度。ray_param 单位 s/deg。
+
+    H = Δt / (2*sqrt(1/Vp^2 - p^2))
+    """
+    vp = float(vp_crust) if vp_crust else DEFAULT_CRUST_VP
     p_s_per_km = float(ray_param) / 57.29578 / 111.19492
     term = (1.0 / vp ** 2) - p_s_per_km**2
     if term <= 0.0:
@@ -83,11 +89,14 @@ def calculate_pp_pmp_thickness(time_diff, vp_crust, ray_param):
     return float(time_diff) / (2.0 * math.sqrt(term))
 
 
-def calculate_sp_smp_thickness(time_diff, vp_crust, vs_crust, ray_param):
-    # 与 calucate_xmP.py 一致：Vp/Vs 写死，射线参数单位转换用 /57.29578/111.19492。
-    # vp_crust / vs_crust 参数仅为兼容旧调用，实际不使用。
-    vp = 5.8
-    vs = 3.2
+def calculate_sp_smp_thickness(time_diff, vp_crust=DEFAULT_CRUST_VP,
+                               vs_crust=DEFAULT_CRUST_VS, ray_param=None):
+    """sP-smP 走时差反算地壳厚度。ray_param 单位 s/deg。
+
+    H = Δt / (sqrt(1/Vs^2 - p^2) + sqrt(1/Vp^2 - p^2))
+    """
+    vp = float(vp_crust) if vp_crust else DEFAULT_CRUST_VP
+    vs = float(vs_crust) if vs_crust else DEFAULT_CRUST_VS
     p_s_per_km = float(ray_param) / 57.29578 / 111.19492
     slowness_s = (1.0 / (vs * vs)) - p_s_per_km**2
     slowness_p = (1.0 / (vp * vp)) - p_s_per_km**2
@@ -99,8 +108,7 @@ def calculate_sp_smp_thickness(time_diff, vp_crust, vs_crust, ray_param):
     return float(time_diff) / denominator
 
 
-# 单条波形场景：完全照搬 calucate_xmP.py 的方案。
-# 用 obspy get_ray_paths_geo 取路径首点 ray param（s/rad），转 s/km；Vp/Vs 写死。
+# 单条波形场景：用 obspy get_ray_paths_geo 取射线路径首点 ray param（s/rad），转 s/km。
 _TAUP_MODEL_CACHE: dict[str, object] = {}
 
 
@@ -146,10 +154,11 @@ def reverse_station_coord(evla, evlo, az_deg, gcarc_deg):
     return math.degrees(lat2), math.degrees(lon2)
 
 
-def calculate_single_trace_thickness(time_diff, ray_param, label):
-    """与 calucate_xmP.calucate_h 一致：label='s' 为 sP-smP，'p' 为 pP-pmP。"""
-    vp = SINGLE_TRACE_VP
-    vs = SINGLE_TRACE_VS
+def calculate_single_trace_thickness(time_diff, ray_param, label,
+                                     vp=SINGLE_TRACE_VP, vs=SINGLE_TRACE_VS):
+    """单条波形的厚度。label='s' 为 sP-smP，'p' 为 pP-pmP；ray_param 单位 s/km。"""
+    vp = float(vp) if vp else SINGLE_TRACE_VP
+    vs = float(vs) if vs else SINGLE_TRACE_VS
     p_s_per_km = float(ray_param)  # fetch_obspy_ray_parameter 已转成 s/km
     slowness_s = (1.0 / (vs * vs)) - p_s_per_km**2
     slowness_p = (1.0 / (vp * vp)) - p_s_per_km**2
