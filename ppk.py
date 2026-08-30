@@ -331,7 +331,6 @@ class MatplotlibWidget(QMainWindow):
         self.bp_preset_path = join(dirname(__file__), 'bp_presets.json')
         self.phase_preset_path = join(dirname(__file__), 'phase_presets.json')
         self.preview_phases = [item.strip() for item in ta_tb.split(',') if item.strip()]
-        self.compare_default_bp_presets = []
         self.bp_presets = self._load_bp_presets()
         self.phase_presets = self._load_phase_presets()
         self.tmaker = self.pending_tmarker
@@ -348,11 +347,9 @@ class MatplotlibWidget(QMainWindow):
                                dpi=100, xlim=xlim, order=order, tmarker= tmarker,
                                suffix=suffix,ta_tb=ta_tb,xlim_preview=xlim_preview, axis_mode=self.axis_mode, member_filter=member_filter)
         self.mpl.wavefig.jump_status_callback = self.show_jump_status
-        self.mpl.wavefig.compare_defaults_update_callback = self.save_compare_default_presets
-        self.mpl.wavefig.compare_status_callback = self.show_status_message
+        self.mpl.wavefig.status_callback = self.show_status_message
         self.mpl.wavefig.phase_tokens_change_callback = self.sync_phase_preset_from_wavefig
         self.mpl.wavefig.stack_review_refresh_callback = self._refresh_open_stack_thickness_reviews
-        self._sync_compare_preset_state()
         self.layout.addWidget(self.mpl, 2)
         self.mpl.mpl_connect('button_press_event', self.on_click)
         self.mpl.mpl_connect('key_press_event', self.keyPressEvent)
@@ -1025,9 +1022,6 @@ class MatplotlibWidget(QMainWindow):
         focus_widget = QApplication.focusWidget()
         if isinstance(focus_widget, QLineEdit):
             return
-        if self.mpl.wavefig.close_compare_window():
-            self.show_status_message('Closed compare window')
-            return
         if self.mpl.wavefig.close_preview_window():
             self.show_status_message('Closed preview window')
             return
@@ -1261,10 +1255,8 @@ class MatplotlibWidget(QMainWindow):
             return [self._default_bp_preset()]
         if isinstance(loaded, dict):
             raw_presets = loaded.get('presets', [])
-            raw_compare_defaults = loaded.get('compare_defaults', [])
         else:
             raw_presets = loaded
-            raw_compare_defaults = []
         presets = []
         seen = set()
         if not isinstance(raw_presets, list):
@@ -1278,19 +1270,6 @@ class MatplotlibWidget(QMainWindow):
                 continue
             presets.append(normalized)
             seen.add(key)
-        compare_defaults = []
-        compare_seen = set()
-        if isinstance(raw_compare_defaults, list):
-            for item in raw_compare_defaults:
-                normalized = self._normalize_bp_preset(item)
-                if normalized is None:
-                    continue
-                key = self._bp_preset_key(normalized)
-                if key in compare_seen or key not in seen:
-                    continue
-                compare_defaults.append(normalized)
-                compare_seen.add(key)
-        self.compare_default_bp_presets = compare_defaults
         if not presets:
             return [self._default_bp_preset()]
         return presets
@@ -1299,10 +1278,7 @@ class MatplotlibWidget(QMainWindow):
         try:
             with open(self.bp_preset_path, 'w', encoding='utf-8') as f:
                 json.dump(
-                    {
-                        'presets': self.bp_presets,
-                        'compare_defaults': self.compare_default_bp_presets,
-                    },
+                    {'presets': self.bp_presets},
                     f,
                     ensure_ascii=True,
                     indent=2,
@@ -1341,37 +1317,6 @@ class MatplotlibWidget(QMainWindow):
                 json.dump(self.phase_presets, f, ensure_ascii=True, indent=2)
         except OSError as exc:
             self.show_status_message(f'Failed to save phase presets: {exc}', timeout_ms=5000)
-
-    def _sync_compare_preset_state(self):
-        if not hasattr(self, 'mpl') or not hasattr(self.mpl, 'wavefig'):
-            return
-        self.mpl.wavefig.set_compare_preset_library(
-            self.bp_presets,
-            self.compare_default_bp_presets,
-        )
-
-    def save_compare_default_presets(self, profiles):
-        normalized_defaults = []
-        preset_keys = {self._bp_preset_key(profile) for profile in self.bp_presets}
-        seen = set()
-        for item in profiles:
-            normalized = self._normalize_bp_preset(item)
-            if normalized is None:
-                continue
-            key = self._bp_preset_key(normalized)
-            if key not in preset_keys or key in seen:
-                continue
-            normalized_defaults.append(normalized)
-            seen.add(key)
-        self.compare_default_bp_presets = normalized_defaults
-        self._save_bp_presets()
-        self._sync_compare_preset_state()
-        if normalized_defaults:
-            self.show_status_message(
-                f"Saved {len(normalized_defaults)} compare default BP preset(s)"
-            )
-        else:
-            self.show_status_message("Cleared compare default BP presets")
 
     def _refresh_bp_preset_combo(self, select_key=None):
         if not hasattr(self, 'bp_preset_combo'):
@@ -1554,7 +1499,6 @@ class MatplotlibWidget(QMainWindow):
         self.bp_presets.append(profile)
         self._save_bp_presets()
         self._refresh_bp_preset_combo(select_key=target_key)
-        self._sync_compare_preset_state()
         self.show_status_message(f"Added {self._bp_preset_label(profile)}")
 
     def add_current_phase_preset(self):
@@ -1587,14 +1531,8 @@ class MatplotlibWidget(QMainWindow):
             existing for existing in self.bp_presets
             if self._bp_preset_key(existing) != self._bp_preset_key(normalized)
         ]
-        removed_key = self._bp_preset_key(normalized)
-        self.compare_default_bp_presets = [
-            existing for existing in self.compare_default_bp_presets
-            if self._bp_preset_key(existing) != removed_key
-        ]
         self._save_bp_presets()
         self._refresh_bp_preset_combo()
-        self._sync_compare_preset_state()
         self.show_status_message(f"Removed {self._bp_preset_label(normalized)}")
 
     def remove_selected_phase_preset(self):
@@ -1645,7 +1583,6 @@ class MatplotlibWidget(QMainWindow):
 
     def finish(self):
         self.mpl.wavefig.finish()
-        self.mpl.wavefig.close_compare_window()
         self.mpl.wavefig.close_preview_window()
         self.close()
 
@@ -1668,7 +1605,6 @@ class MatplotlibWidget(QMainWindow):
         if self.mpl.wavefig.plotfig is not None and plt.fignum_exists(self.mpl.wavefig.plotfig.number):
             preview_index = getattr(self.mpl.wavefig.plotfig, '_preview_controls', {}).get('preview_index', 0)
             self.mpl.wavefig._refresh_preview_figure(self.mpl.wavefig.plotfig, preview_index)
-            self.mpl.wavefig._refresh_compare_for_preview_index(preview_index)
         self.mpl.draw()
         state_label = 'flipped' if self.mpl.wavefig._is_user4_wave(wave_name) else 'restored'
         self.show_status_message(f'Polarity {state_label} for {wave_name}', timeout_ms=4000)

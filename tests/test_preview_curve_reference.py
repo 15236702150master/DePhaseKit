@@ -2457,7 +2457,6 @@ class PreviewCurveReferenceTests(unittest.TestCase):
         widget.bp_corners = 2
         widget.bp_passes = 2
         widget.preview_phases = ['t7']
-        widget.compare_default_bp_presets = []
         widget.bp_presets = []
         widget.phase_presets = []
         widget.tmaker = 't7'
@@ -2471,8 +2470,7 @@ class PreviewCurveReferenceTests(unittest.TestCase):
             wavefig=SimpleNamespace(
                 stack_mode=False,
                 jump_status_callback=None,
-                compare_defaults_update_callback=None,
-                compare_status_callback=None,
+                status_callback=None,
                 phase_tokens_change_callback=None,
                 stack_review_refresh_callback=None,
             ),
@@ -2496,7 +2494,6 @@ class PreviewCurveReferenceTests(unittest.TestCase):
         widget._force_visible_cursor = lambda *args, **kwargs: None
         widget._load_bp_presets = lambda: []
         widget._load_phase_presets = lambda: []
-        widget._sync_compare_preset_state = lambda: None
         widget.add_btn = lambda: None
 
         class DummyCanvas:
@@ -2981,7 +2978,6 @@ class PreviewCurveReferenceTests(unittest.TestCase):
             wavefig=SimpleNamespace(
                 stack_mode=True,
                 finish=lambda: events.append('finish'),
-                close_compare_window=lambda: False,
                 close_preview_window=lambda: events.append('close_preview') or True,
             )
         )
@@ -2998,7 +2994,6 @@ class PreviewCurveReferenceTests(unittest.TestCase):
         widget.mpl = SimpleNamespace(
             wavefig=SimpleNamespace(
                 finish=lambda: events.append('finish'),
-                close_compare_window=lambda: events.append('close_compare') or False,
                 close_preview_window=lambda: events.append('close_preview') or False,
             )
         )
@@ -3006,7 +3001,7 @@ class PreviewCurveReferenceTests(unittest.TestCase):
 
         widget.finish()
 
-        self.assertEqual(events, ['finish', 'close_compare', 'close_preview', 'close_window'])
+        self.assertEqual(events, ['finish', 'close_preview', 'close_window'])
 
     def test_stack_quarantine_preview_reports_without_moving_files(self):
         widget = MatplotlibWidget.__new__(MatplotlibWidget)
@@ -3924,7 +3919,7 @@ class PreviewCurveReferenceTests(unittest.TestCase):
         self.assertEqual(figure.current_pick_wave_name, 'stack1.sac')
         self.assertEqual(figure.current_pick_station_name, 'DPK.STACK [group:group2 | linear | rms | N=27]')
 
-    def test_compare_metadata_can_carry_stack_summary(self):
+    def test_stack_wave_summary_describes_group_and_stack_type(self):
         figure = WaveFigure.__new__(WaveFigure)
         figure.stack_mode = True
         figure.stack_sidecars = {
@@ -3942,7 +3937,7 @@ class PreviewCurveReferenceTests(unittest.TestCase):
         trace.stats.sac = obspy.core.AttribDict(gcarc=88.1, baz=212.4)
         trace.stats.dpk_wave_name = 'stack1.sac'
 
-        compare_metadata = [{
+        trace_metadata = [{
             'name': f"{trace.stats.network}.{trace.stats.station}",
             'gcarc': float(trace.stats.sac.gcarc),
             'baz': float(trace.stats.sac.baz),
@@ -3950,39 +3945,7 @@ class PreviewCurveReferenceTests(unittest.TestCase):
             'stack_summary': figure._stack_wave_summary(getattr(trace.stats, 'dpk_wave_name', '')),
         }]
 
-        self.assertEqual(compare_metadata[0]['stack_summary'], 'group:group2 | linear | rms | N=27')
-
-    def test_compare_stack_summary_text_prefers_active_wave(self):
-        figure = WaveFigure.__new__(WaveFigure)
-        figure.stack_mode = True
-        compare_metadata = [
-            {
-                'wave_name': 'stack1.sac',
-                'stack_summary': 'visible | linear | rms | N=10',
-            },
-            {
-                'wave_name': 'stack2.sac',
-                'stack_summary': 'group:group2 | pws | rms | N=27',
-            },
-        ]
-
-        summary_text = figure._compare_stack_summary_text(compare_metadata, active_wave_name='stack2.sac')
-
-        self.assertEqual(summary_text, 'Stack: group:group2 | pws | rms | N=27')
-
-    def test_compare_stack_summary_text_empty_outside_stack_mode(self):
-        figure = WaveFigure.__new__(WaveFigure)
-        figure.stack_mode = False
-        compare_metadata = [
-            {
-                'wave_name': 'stack1.sac',
-                'stack_summary': 'group:group2 | linear | rms | N=27',
-            },
-        ]
-
-        summary_text = figure._compare_stack_summary_text(compare_metadata, active_wave_name='stack1.sac')
-
-        self.assertEqual(summary_text, '')
+        self.assertEqual(trace_metadata[0]['stack_summary'], 'group:group2 | linear | rms | N=27')
 
     def test_preview_pierce_points_falls_back_to_stack_sidecar_average_location(self):
         figure = WaveFigure.__new__(WaveFigure)
@@ -4189,7 +4152,6 @@ class PreviewCurveReferenceTests(unittest.TestCase):
         figure.current_pick_wave_name = None
         figure.current_pick_station_name = None
         figure._refresh_preview_figure = lambda fig, preview_index: None
-        figure._refresh_compare_for_preview_index = lambda preview_index: None
         figure._refresh_pick_window_if_available = lambda focus_current_wave=True: None
         figure._set_preview_search_status = lambda fig, text, color=None: setattr(fig, 'last_status', (text, color))
 
@@ -6016,7 +5978,6 @@ class PreviewCurveReferenceTests(unittest.TestCase):
         figure._apply_preview_selection = lambda fig: None
         figure._refresh_preview_figure = lambda fig, preview_index: None
         figure._refresh_pick_window_if_available = lambda focus_current_wave=False: None
-        figure._refresh_compare_for_preview_index = lambda preview_index: None
         fig = SimpleNamespace(
             _preview_reference_times={'wave_a.sac': 12.5},
             _preview_reference_tmarker='7',

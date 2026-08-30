@@ -878,12 +878,7 @@ class WaveFigure(Figure):
             'corners': 2,
             'passes': 1,
         }
-        self.compare_preset_profiles = []
-        self.compare_default_bandpass_profiles = []
-        self.compare_bandpass_profiles = []
-        self.comparefig = None
         self.preview_control_dock = None
-        self.max_compare_columns = 4
         self.current_pick_wave_name = None
         self.current_pick_station_name = None
         self.preview_jump_highlight_wave_name = None
@@ -931,8 +926,7 @@ class WaveFigure(Figure):
         }
         self.pick_mode_armed = False
         self.jump_status_callback = None
-        self.compare_status_callback = None
-        self.compare_defaults_update_callback = None
+        self.status_callback = None
         self.phase_tokens_change_callback = None
         self.stack_review_refresh_callback = None
         self.jump_target_mode = 'user2'
@@ -1803,22 +1797,6 @@ class WaveFigure(Figure):
             return 'selected'
         return 'visible'
 
-    def _compare_stack_summary_text(self, compare_metadata, active_wave_name=''):
-        if not getattr(self, 'stack_mode', False):
-            return ''
-        active_wave_name = str(active_wave_name or '')
-        for meta in compare_metadata or []:
-            if str(meta.get('wave_name', '')) != active_wave_name:
-                continue
-            stack_summary = str(meta.get('stack_summary', '') or '').strip()
-            if stack_summary:
-                return f"Stack: {stack_summary}"
-        for meta in compare_metadata or []:
-            stack_summary = str(meta.get('stack_summary', '') or '').strip()
-            if stack_summary:
-                return f"Stack: {stack_summary}"
-        return ''
-
     def _wave_files_for_suffix(self):
         suffix = str(self.suffix or '')
         if suffix == '':
@@ -2074,17 +2052,6 @@ class WaveFigure(Figure):
                 and self.plotfig._preview_state.get('tmarker') == marker_key):
             self._refresh_preview_figure(self.plotfig, synced_preview_index)
 
-        self._refresh_compare_for_preview_index(synced_preview_index)
-
-    def _refresh_compare_for_preview_index(self, preview_index):
-        if (self.comparefig is None
-                or not plt.fignum_exists(self.comparefig.number)
-                or not hasattr(self.comparefig, '_compare_state')
-                or self.comparefig._compare_state is None):
-            return
-        if self.comparefig._compare_state.get('preview_index') != preview_index:
-            return
-        self.plot_compare_preview(preview_index)
 
     def init_canvas(self, order='gcarc'):
         self.init_figure(width=self.width, height=self.height, dpi=self.dpi)
@@ -4781,7 +4748,6 @@ class WaveFigure(Figure):
         if refresh and preview_index is not None:
             if self.plotfig is not None and plt.fignum_exists(self.plotfig.number):
                 self._refresh_preview_figure(self.plotfig, preview_index)
-            self._refresh_compare_for_preview_index(preview_index)
         return canonical_tokens, None
 
     def _standard_phase_label(self, marker_key, duplicate_labels=None):
@@ -4984,7 +4950,6 @@ class WaveFigure(Figure):
         self.preview_even_spacing_step = new_spacing
         if self.preview_trace_layout_mode == 'even':
             self._refresh_preview_figure(fig, preview_index)
-            self._refresh_compare_for_preview_index(preview_index)
             self._set_preview_search_status(fig, f'Even gap {self.preview_even_spacing_step:.1f}', color='#1f4e79')
             return
         self._set_preview_search_status(
@@ -5342,13 +5307,13 @@ class WaveFigure(Figure):
             return 'Raw'
         return f"{profile['freqmin']:g}-{profile['freqmax']:g}"
 
-    def _emit_compare_status(self, message, timeout_ms=3000):
-        if self.compare_status_callback is not None:
+    def _emit_status(self, message, timeout_ms=3000):
+        if self.status_callback is not None:
             try:
-                self.compare_status_callback(message, timeout_ms=timeout_ms)
+                self.status_callback(message, timeout_ms=timeout_ms)
                 return
             except TypeError:
-                self.compare_status_callback(message)
+                self.status_callback(message)
                 return
         print(message)
 
@@ -5782,10 +5747,6 @@ class WaveFigure(Figure):
 
         add_bp_option({'freqmin': 0.02, 'freqmax': 0.2, 'corners': 2, 'passes': 1})
         add_bp_option(self._current_bandpass_profile())
-        for preset in getattr(self, 'compare_preset_profiles', []):
-            add_bp_option(preset)
-        for preset in getattr(self, 'compare_default_bandpass_profiles', []):
-            add_bp_option(preset)
 
         bp_combo = QComboBox(dialog)
         selected_profile = self._std_export_bandpass_profile(self.standard_export_options)
@@ -6601,66 +6562,6 @@ class WaveFigure(Figure):
                     if wave_index < len(marker_array):
                         marker_array[wave_index] = marker_time
 
-    def set_compare_preset_library(self, preset_profiles, default_profiles=None):
-        normalized_presets = []
-        preset_keys = set()
-        for item in preset_profiles or []:
-            normalized = self._normalize_bandpass_profile(item)
-            if normalized is None:
-                continue
-            key = self._bandpass_profile_key(normalized)
-            if key in preset_keys:
-                continue
-            normalized_presets.append(normalized)
-            preset_keys.add(key)
-        normalized_defaults = []
-        default_keys = set()
-        for item in default_profiles or []:
-            normalized = self._normalize_bandpass_profile(item)
-            if normalized is None:
-                continue
-            key = self._bandpass_profile_key(normalized)
-            if key not in preset_keys or key in default_keys:
-                continue
-            normalized_defaults.append(normalized)
-            default_keys.add(key)
-        self.compare_preset_profiles = normalized_presets
-        self.compare_default_bandpass_profiles = normalized_defaults[:max(0, self.max_compare_columns - 1)]
-        if self.comparefig is not None and plt.fignum_exists(self.comparefig.number):
-            preview_index = self.comparefig._compare_state.get('preview_index', 0)
-            self.plot_compare_preview(preview_index)
-
-    def add_current_bandpass_to_compare(self):
-        profile = self._current_bandpass_profile()
-        if profile is None:
-            print("Current BP is invalid; compare list unchanged.")
-            return False
-        new_key = self._bandpass_profile_key(profile)
-        for existing in self.compare_bandpass_profiles:
-            if self._bandpass_profile_key(existing) == new_key:
-                print(f"Compare BP already exists: {self._format_bandpass_label(profile)}")
-                return False
-        self.compare_bandpass_profiles.append(profile)
-        print(f"Added compare BP: {self._format_bandpass_label(profile)}")
-        return True
-
-    def clear_compare_bandpasses(self):
-        self.compare_bandpass_profiles = []
-        print("Cleared compare BP list.")
-
-    def _default_compare_profiles(self):
-        if self.compare_default_bandpass_profiles:
-            return list(self.compare_default_bandpass_profiles[:max(0, self.max_compare_columns - 1)])
-        current_profile = self._current_bandpass_profile()
-        if current_profile is None:
-            return []
-        return [current_profile]
-
-    def _ensure_compare_profiles(self):
-        if not self.compare_bandpass_profiles:
-            self.compare_bandpass_profiles = self._default_compare_profiles()
-        return self.compare_bandpass_profiles
-
     def set_bandpass_settings(self, freqmin=None, freqmax=None, corners=2, passes=2):
         self.bandpass_settings = {
             'freqmin': freqmin,
@@ -6677,8 +6578,6 @@ class WaveFigure(Figure):
                 if preview_controls:
                     preview_index = preview_controls.get('preview_index', 0)
                 self._refresh_preview_figure(self.plotfig, preview_index)
-            if self.comparefig is not None and plt.fignum_exists(self.comparefig.number):
-                self.plot_compare_preview(preview_index)
 
     def apply_sac_bandpass_and_reload(self, freqmin=None, freqmax=None, corners=2, passes=2, order='gcarc'):
         if freqmin is None or freqmax is None:
@@ -6731,8 +6630,6 @@ class WaveFigure(Figure):
         self.refresh_current_page()
         if self.plotfig is not None and plt.fignum_exists(self.plotfig.number):
             self._refresh_preview_figure(self.plotfig, preview_index)
-        if self.comparefig is not None and plt.fignum_exists(self.comparefig.number):
-            self.plot_compare_preview(preview_index)
         return True, f'Applied SAC BP c {float(freqmin):g} {float(freqmax):g} n {int(corners)} p {int(passes)}'
 
     def restore_event_from_backup(self, backup_event_path, order='gcarc'):
@@ -6822,8 +6719,6 @@ class WaveFigure(Figure):
         self.refresh_current_page()
         if self.plotfig is not None and plt.fignum_exists(self.plotfig.number):
             self._refresh_preview_figure(self.plotfig, preview_index)
-        if self.comparefig is not None and plt.fignum_exists(self.comparefig.number):
-            self.plot_compare_preview(preview_index)
         return True, f'Restored backup SAC data from {backup_event_path} ({match_summary})', match_summary
 
     def set_alignment_marker(self, marker, xlim=None):
@@ -7893,7 +7788,6 @@ class WaveFigure(Figure):
         if use_selected_set:
             fig._preview_forced_selected_wave_names = list(updated_wave_names)
         self._refresh_preview_figure(fig, preview_index)
-        self._refresh_compare_for_preview_index(preview_index)
         self._refresh_pick_window_if_available(focus_current_wave=use_selected_set)
         direction = '+' if delta_seconds > 0 else ''
         delta_applied = delta_seconds
@@ -7990,7 +7884,6 @@ class WaveFigure(Figure):
         self.current_pick_wave_name = first_wave_name
         self.current_pick_station_name = station_name
         self._refresh_preview_figure(fig, preview_index)
-        self._refresh_compare_for_preview_index(preview_index)
         self._refresh_pick_window_if_available(focus_current_wave=use_selected_set)
 
         direction = '+' if delta_seconds > 0 else ''
@@ -8389,7 +8282,6 @@ class WaveFigure(Figure):
             self.current_pick_station_name = self._wave_display_name(updated_wave_names[0], self.filenames[first_index])
         self._clear_preview_curve_pick(fig)
         self._refresh_preview_figure(fig, preview_index)
-        self._refresh_compare_for_preview_index(preview_index)
         self._refresh_pick_window_if_available(focus_current_wave=focus_current_wave)
 
     def _curve_marker_time_for_preview_line(self, line, baseline_y, reference_time, curve_points, half_window=None):
@@ -8969,7 +8861,7 @@ class WaveFigure(Figure):
         tmarker, x1, x2 = self.preview_modes[preview_index]
         waves, t_lst, reference_times = self._collect_preview_display_stream(tmarker)
         if len(waves) == 0:
-            self._emit_compare_status(
+            self._emit_status(
                 f'No preview waveforms available for t{tmarker}',
                 timeout_ms=5000,
             )
@@ -9560,7 +9452,6 @@ class WaveFigure(Figure):
             self.preview_modes[preview_index][1] = new_x1
             self.preview_modes[preview_index][2] = new_x2
             self._refresh_preview_figure(fig, preview_index)
-            self._refresh_compare_for_preview_index(preview_index)
             applied_dx, applied_mode = self._current_preview_tick_interval(new_x1, new_x2)
             self._set_preview_search_status(
                 fig,
@@ -9798,7 +9689,6 @@ class WaveFigure(Figure):
                 lambda: self._toggle_stack_member_pierce_points(fig, preview_index),
                 width=82,
             )
-        add_button(row2, 'V', lambda: self.plot_compare_preview(preview_index, use_default_profiles=True), width=40)
         curve_pick_button = add_button(
             row2,
             'P',
@@ -9940,11 +9830,7 @@ class WaveFigure(Figure):
                 return raw_key == lower_letter.upper() or key == f'shift+{lower_letter}'
 
             if key == ' ' or key == 'space':
-                if self.comparefig is not None and plt.fignum_exists(self.comparefig.number):
-                    self.close_compare_window()
-                    self._set_preview_search_status(fig, 'Closed compare window', color='#1f4e79')
-                else:
-                    self.close_preview_window()
+                self.close_preview_window()
                 return
             if getattr(self, 'stack_mode', False) and key in ('w', 's'):
                 direction = -1 if key == 'w' else 1
@@ -9993,8 +9879,6 @@ class WaveFigure(Figure):
                 self._restore_last_preview_m(fig, preview_index)
             elif key == 'c':
                 self._save_preview_snapshot(fig, preview_index)
-            elif key == 'v':
-                self.plot_compare_preview(preview_index, use_default_profiles=True)
             elif key == 'p':
                 if axr is not None:
                     self._start_preview_curve_pick(fig, axr)
@@ -10137,8 +10021,6 @@ class WaveFigure(Figure):
     def _toggle_preview_layout_qt(self, fig, preview_index):
         self.preview_trace_layout_mode = 'even' if self.preview_trace_layout_mode == 'real' else 'real'
         self._refresh_preview_figure(fig, preview_index)
-        if self.comparefig is not None and plt.fignum_exists(self.comparefig.number):
-            self.plot_compare_preview(preview_index)
         self._set_preview_search_status(fig, f'Layout: {self._preview_layout_summary()}', color='#1f4e79')
 
     def _toggle_preview_view_mode_qt(self, fig, preview_index):
@@ -11198,7 +11080,6 @@ class WaveFigure(Figure):
         self._apply_preview_selection(fig)
         self._refresh_preview_figure(fig, preview_index)
         self._refresh_pick_window_if_available()
-        self._refresh_compare_for_preview_index(preview_index)
         return len(target_wave_names)
 
     def _clear_selected_preview_user4(self, fig, preview_index):
@@ -11233,7 +11114,6 @@ class WaveFigure(Figure):
         self._apply_preview_selection(fig)
         self._refresh_preview_figure(fig, preview_index)
         self._refresh_pick_window_if_available()
-        self._refresh_compare_for_preview_index(preview_index)
         return len(target_wave_names)
 
     def _clear_selected_preview_user1(self, fig):
@@ -11368,7 +11248,6 @@ class WaveFigure(Figure):
         self._apply_preview_selection(fig)
         self._refresh_preview_figure(fig, preview_index)
         self._refresh_pick_window_if_available()
-        self._refresh_compare_for_preview_index(preview_index)
         return cleared_count, marker_keys, None
 
     def _sync_preview_amplitude_control(self, fig):
@@ -12070,208 +11949,6 @@ class WaveFigure(Figure):
             anchor_wave_name = preview_state['metadata'][anchor_index]['wave_name']
         return selected_wave_names, active_wave_name, anchor_wave_name
 
-    def _compare_profiles_with_raw(self):
-        profiles = [None] + list(self._ensure_compare_profiles())
-        return profiles[:self.max_compare_columns]
-
-    def _compare_selected_slot(self):
-        profiles = self._compare_profiles_with_raw()
-        default_slot = 1 if len(profiles) > 1 else 0
-        if self.comparefig is None or not hasattr(self.comparefig, '_compare_state'):
-            return default_slot
-        selected_slot = self.comparefig._compare_state.get('selected_slot', default_slot)
-        return max(0, min(selected_slot, len(profiles) - 1))
-
-    def _compare_input_profile(self, fig):
-        if fig is None or not hasattr(fig, '_compare_controls'):
-            return self._current_bandpass_profile()
-        controls = fig._compare_controls
-        try:
-            freqmin = float(controls['freqmin'].text.strip())
-            freqmax = float(controls['freqmax'].text.strip())
-            corners = int(float(controls['corners'].text.strip()))
-            passes = int(float(controls['passes'].text.strip()))
-        except (ValueError, AttributeError):
-            return None
-        if freqmin <= 0 or freqmax <= freqmin:
-            return None
-        return {
-            'freqmin': freqmin,
-            'freqmax': freqmax,
-            'corners': max(1, corners),
-            'passes': max(1, passes),
-        }
-
-    def _populate_compare_inputs(self, fig, profile):
-        if fig is None or not hasattr(fig, '_compare_controls') or profile is None:
-            return
-        fig._compare_controls['freqmin'].set_val(f"{profile['freqmin']:g}")
-        fig._compare_controls['freqmax'].set_val(f"{profile['freqmax']:g}")
-        fig._compare_controls['corners'].set_val(str(int(profile['corners'])))
-        fig._compare_controls['passes'].set_val(str(int(profile['passes'])))
-
-    def _replace_selected_compare_profile(self, fig, preview_index):
-        profile = self._compare_input_profile(fig)
-        if profile is None:
-            print("Compare BP parameters are invalid; nothing changed.")
-            return
-        profiles = list(self._ensure_compare_profiles())
-        selected_slot = self._compare_selected_slot()
-        if selected_slot == 0:
-            if not profiles:
-                profiles.append(profile)
-                selected_slot = 1
-            else:
-                profiles[0] = profile
-                selected_slot = 1
-        else:
-            profile_index = selected_slot - 1
-            if profile_index >= len(profiles):
-                profiles.append(profile)
-                selected_slot = len(profiles)
-            else:
-                profiles[profile_index] = profile
-        self.compare_bandpass_profiles = profiles[:max(0, self.max_compare_columns - 1)]
-        self.plot_compare_preview(preview_index, selected_slot=selected_slot, input_profile=profile)
-
-    def _add_compare_profile_from_inputs(self, fig, preview_index):
-        profile = self._compare_input_profile(fig)
-        if profile is None:
-            print("Compare BP parameters are invalid; nothing added.")
-            return
-        profiles = list(self._ensure_compare_profiles())
-        new_key = self._bandpass_profile_key(profile)
-        for existing in profiles:
-            if self._bandpass_profile_key(existing) == new_key:
-                print(f"Compare BP already exists: {self._format_bandpass_label(profile)}")
-                self.plot_compare_preview(preview_index, input_profile=profile)
-                return
-        if len(profiles) >= self.max_compare_columns - 1:
-            selected_slot = max(1, self._compare_selected_slot())
-            profiles[selected_slot - 1] = profile
-        else:
-            profiles.append(profile)
-            selected_slot = len(profiles)
-        self.compare_bandpass_profiles = profiles[:max(0, self.max_compare_columns - 1)]
-        self.plot_compare_preview(preview_index, selected_slot=selected_slot, input_profile=profile)
-
-    def _clear_compare_profiles_from_window(self, preview_index):
-        self.compare_bandpass_profiles = self._default_compare_profiles()
-        selected_slot = 1 if self.compare_bandpass_profiles else 0
-        self.plot_compare_preview(preview_index, selected_slot=selected_slot)
-
-    def _toggle_compare_preset_profile(self, preview_index, profile):
-        normalized = self._normalize_bandpass_profile(profile)
-        if normalized is None:
-            self._emit_compare_status('Selected compare BP preset is invalid')
-            return
-        key = self._bandpass_profile_key(normalized)
-        profiles = list(self.compare_bandpass_profiles)
-        existing_index = next(
-            (idx for idx, existing in enumerate(profiles) if self._bandpass_profile_key(existing) == key),
-            None,
-        )
-        if existing_index is not None:
-            profiles.pop(existing_index)
-            self.compare_bandpass_profiles = profiles
-            selected_slot = min(existing_index + 1, len(profiles))
-            self.plot_compare_preview(preview_index, selected_slot=selected_slot)
-            return
-        if len(profiles) >= self.max_compare_columns - 1:
-            self._emit_compare_status(
-                f'Compare preset limit reached: {self.max_compare_columns - 1} filtered columns (+ Raw)'
-            )
-            return
-        profiles.append(normalized)
-        self.compare_bandpass_profiles = profiles
-        self.plot_compare_preview(preview_index, selected_slot=len(profiles))
-
-    def _save_compare_defaults_from_selection(self, preview_index):
-        preset_keys = {
-            self._bandpass_profile_key(profile): profile
-            for profile in self.compare_preset_profiles
-        }
-        default_profiles = []
-        seen = set()
-        for profile in self.compare_bandpass_profiles:
-            key = self._bandpass_profile_key(profile)
-            if key not in preset_keys or key in seen:
-                continue
-            default_profiles.append(preset_keys[key])
-            seen.add(key)
-        self.compare_default_bandpass_profiles = default_profiles[:max(0, self.max_compare_columns - 1)]
-        if self.compare_defaults_update_callback is not None:
-            self.compare_defaults_update_callback(self.compare_default_bandpass_profiles)
-        else:
-            self._emit_compare_status('Compare default presets updated')
-        self.plot_compare_preview(preview_index)
-
-    def _save_compare_snapshot(self, fig, preview_index):
-        if preview_index >= len(self.preview_modes):
-            return
-        tmarker, _, _ = self.preview_modes[preview_index]
-        output_dir = self._analysis_output_directory()
-        os.makedirs(output_dir, exist_ok=True)
-        timestamp = obspy.UTCDateTime().strftime("%Y%m%d_%H%M%S")
-        latest_path = os.path.join(output_dir, f"compare_preview_t{tmarker}_latest.png")
-        history_path = os.path.join(output_dir, f"compare_preview_t{tmarker}_{timestamp}.png")
-        fig.savefig(latest_path, dpi=300, bbox_inches='tight')
-        fig.savefig(history_path, dpi=300, bbox_inches='tight')
-        print(f"Saved compare snapshot: {latest_path}")
-        print(f"Saved compare snapshot history: {history_path}")
-
-    def _capture_compare_window_state(self):
-        if self.comparefig is None:
-            return None
-        manager = getattr(self.comparefig.canvas, 'manager', None)
-        window = getattr(manager, 'window', None)
-        if window is None:
-            return None
-        state = {'maximized': False, 'geometry': None}
-        try:
-            state['maximized'] = bool(window.isMaximized())
-        except Exception:
-            state['maximized'] = False
-        try:
-            geometry = window.geometry()
-            state['geometry'] = (
-                int(geometry.x()),
-                int(geometry.y()),
-                int(geometry.width()),
-                int(geometry.height()),
-            )
-        except Exception:
-            state['geometry'] = None
-        return state
-
-    def _restore_compare_window_state(self, fig, state):
-        manager = getattr(fig.canvas, 'manager', None)
-        window = getattr(manager, 'window', None)
-        if window is None:
-            return
-        if state is None:
-            # Newly created compare window: center it on the workarea. WSLg/XWayland
-            # ignores move() called before show/map, so retry after show + async.
-            def _center_compare():
-                center_widget_keep_size(window)
-            try:
-                _center_compare()
-                QTimer.singleShot(0, _center_compare)
-            except Exception:
-                pass
-            return
-        geometry = state.get('geometry')
-        if geometry is not None:
-            try:
-                window.setGeometry(*geometry)
-            except Exception:
-                pass
-        if state.get('maximized') and not os.environ.get('WAYLAND_DISPLAY'):
-            try:
-                window.showMaximized()
-            except Exception:
-                pass
-
     def _maximize_preview_window(self, fig):
         manager = getattr(fig.canvas, 'manager', None)
         window = getattr(manager, 'window', None)
@@ -12354,17 +12031,6 @@ class WaveFigure(Figure):
             except Exception:
                 pass
 
-    def close_compare_window(self):
-        if self.comparefig is None or not plt.fignum_exists(self.comparefig.number):
-            self.comparefig = None
-            return False
-        try:
-            plt.close(self.comparefig)
-        except Exception:
-            return False
-        self.comparefig = None
-        return True
-
     def close_preview_window(self):
         if self.plotfig is None or not plt.fignum_exists(self.plotfig.number):
             self.plotfig = None
@@ -12377,234 +12043,6 @@ class WaveFigure(Figure):
             return False
         self.plotfig = None
         return True
-
-    def _add_current_bp_and_refresh_compare(self, preview_index):
-        added = self.add_current_bandpass_to_compare()
-        if added and self.comparefig is not None and plt.fignum_exists(self.comparefig.number):
-            self.plot_compare_preview(preview_index)
-
-    def _clear_compare_and_refresh(self):
-        self.clear_compare_bandpasses()
-        if self.comparefig is not None and plt.fignum_exists(self.comparefig.number):
-            plt.close(self.comparefig)
-        self.comparefig = None
-
-    def plot_compare_preview(self, preview_index=0, selected_slot=None, input_profile=None, use_default_profiles=False):
-        if preview_index >= len(self.preview_modes):
-            return
-        tmarker, x1, x2 = self.preview_modes[preview_index]
-        reference_times = None
-        if self.comparefig is not None and hasattr(self.comparefig, '_compare_state'):
-            compare_state = self.comparefig._compare_state
-            if (compare_state is not None
-                    and compare_state.get('preview_index') == preview_index
-                    and compare_state.get('tmarker') == self._normalize_marker_key(tmarker)):
-                reference_times = compare_state.get('reference_times')
-        if reference_times is None and self.plotfig is not None:
-            reference_times = self._preview_reference_times_from_figure(self.plotfig, expected_tmarker=tmarker)
-        wave_names, t_lst, active_reference_times = self._collect_preview_wave_names_and_times(
-            tmarker,
-            reference_times=reference_times,
-        )
-        if len(wave_names) == 0:
-            return
-        phase_keys, _error_message = self._parse_standard_phase_tokens(self.standard_export_phase_tokens)
-        if use_default_profiles:
-            self.compare_bandpass_profiles = self._default_compare_profiles()
-        self._ensure_compare_profiles()
-        profiles = self._compare_profiles_with_raw()
-        window_state = self._capture_compare_window_state()
-        if self.comparefig is not None and plt.fignum_exists(self.comparefig.number):
-            plt.close(self.comparefig)
-        if selected_slot is None:
-            selected_slot = 1 if len(profiles) > 1 else 0
-        selected_slot = max(0, min(selected_slot, len(profiles) - 1))
-        selected_wave_names, active_wave_name, _ = self._current_preview_metadata_state()
-        preset_rows = max(1, int(math.ceil(max(1, len(self.compare_preset_profiles)) / 4)))
-        bottom_margin = 0.18 + max(0, preset_rows - 1) * 0.06 + (0.06 if self.compare_preset_profiles else 0.0)
-        comparefig = plt.figure(figsize=(4.6 * len(profiles), 10))
-        _force_qt_arrow_cursor_for_figure(comparefig)
-        comparefig.subplots_adjust(bottom=bottom_margin, wspace=0.22)
-        gs = GridSpec(1, len(profiles), figure=comparefig)
-        axes = [comparefig.add_subplot(gs[0, idx]) for idx in range(len(profiles))]
-        compare_evtdata = None
-        compare_lines = []
-        compare_metadata = []
-        for idx, profile in enumerate(profiles):
-            waves = self._build_preview_stream_for_profiles(wave_names, profile=profile)
-            evtdata = EvtData(
-                waves,
-                t_lst,
-                x1=x1,
-                x2=x2,
-                dt=self.dt,
-                event_name_override=self._semantic_event_name(),
-            )
-            if compare_evtdata is None:
-                compare_evtdata = evtdata
-                compare_metadata = [{
-                    'name': f"{tr.stats.network}.{tr.stats.station}",
-                    'gcarc': _sac_float(tr, 'gcarc', 0.0),
-                    'baz': _sac_float(tr, 'baz', 0.0),
-                    'wave_name': getattr(tr.stats, 'dpk_wave_name', ''),
-                    'stack_summary': self._stack_wave_summary(getattr(tr.stats, 'dpk_wave_name', '')),
-                    'is_marked_m': self._is_preview_purple_wave(getattr(tr.stats, 'dpk_wave_name', '')),
-                    'is_user1_marked': self._is_user1_wave(getattr(tr.stats, 'dpk_wave_name', '')),
-                    'is_user5_marked': self._is_user5_wave(getattr(tr.stats, 'dpk_wave_name', '')),
-                    'is_user4_marked': self._is_user4_wave(getattr(tr.stats, 'dpk_wave_name', '')),
-                } for tr in evtdata.wave_ori]
-            y_values, y_ticks, y_ticklabels, ylabel = self._preview_y_axis_config(evtdata, order='gcarc')
-            lines = plot_waves_only(axes[idx], evtdata, enf=1, y_values=y_values)
-            set_wave_axis_only(
-                axes[idx], evtdata, tmarker,
-                title=self._format_bandpass_label(profile),
-                show_ylabel=(idx == 0),
-                y_values=y_values,
-                y_ticks=y_ticks,
-                y_ticklabels=y_ticklabels,
-                ylabel=ylabel,
-            )
-            self._draw_preview_phase_annotations(
-                axes[idx],
-                evtdata,
-                y_values,
-                tmarker,
-                phase_keys,
-                reference_times=active_reference_times,
-            )
-            compare_lines.append(lines)
-        comparefig.suptitle(
-            "{}:{}\n Latitude: {:.2f}\N{DEGREE SIGN}, Longitude: {:.2f}\N{DEGREE SIGN}, Depth:{:.1f} km".format(
-                _event_title_prefix(getattr(compare_evtdata, 'is_stack_mode', False)),
-                compare_evtdata.evtname, compare_evtdata.evla, compare_evtdata.evlo, compare_evtdata.evdp),
-            fontsize=15
-        )
-        for idx in range(1, len(profiles)):
-            axes[idx].set_ylim(axes[0].get_ylim())
-            axes[idx].set_yticks(axes[0].get_yticks())
-        active_index = 0
-        for idx, meta in enumerate(compare_metadata):
-            if meta['wave_name'] == active_wave_name:
-                active_index = idx
-                break
-        for idx, meta in enumerate(compare_metadata):
-            is_selected = meta['wave_name'] in selected_wave_names
-            color, width = self._preview_wave_colors(meta, is_selected)
-            for lines in compare_lines:
-                self._apply_preview_line_style(lines[idx], meta, is_selected, color, width)
-        for idx, ax in enumerate(axes):
-            if idx == selected_slot:
-                for spine in ax.spines.values():
-                    spine.set_color('#d62728')
-                    spine.set_linewidth(1.6)
-                ax.set_title(self._format_bandpass_label(profiles[idx]), fontsize=11, color='#d62728')
-        comparefig._compare_state = {
-            'preview_index': preview_index,
-            'tmarker': tmarker,
-            'selected_slot': selected_slot,
-            'profiles': profiles,
-            'preset_profiles': list(self.compare_preset_profiles),
-            'reference_times': active_reference_times,
-            'metadata': compare_metadata,
-        }
-        comparefig._compare_axes = axes
-        comparefig._compare_controls = {}
-        controls_y = 0.035
-        preset_row_y0 = controls_y + 0.075
-        compare_stack_text = self._compare_stack_summary_text(compare_metadata, active_wave_name)
-        if compare_stack_text:
-            comparefig.text(0.58, controls_y + 0.025, compare_stack_text, fontsize=10, va='center')
-        comparefig.text(0.10, controls_y + 0.025, 'Compare BP', fontsize=10, va='center')
-        comparefig.text(0.17, controls_y + 0.025, 'c', fontsize=10, va='center')
-        comparefig.text(0.36, controls_y + 0.025, 'n', fontsize=10, va='center')
-        comparefig.text(0.46, controls_y + 0.025, 'p', fontsize=10, va='center')
-        if self.compare_preset_profiles:
-            comparefig.text(0.10, preset_row_y0 + 0.018, 'Presets', fontsize=10, va='center')
-        preset_buttons = []
-        for preset_index, preset_profile in enumerate(self.compare_preset_profiles):
-            row = preset_index // 4
-            col = preset_index % 4
-            ax_left = 0.18 + col * 0.18
-            ax_bottom = preset_row_y0 + (preset_rows - 1 - row) * 0.06
-            ax_preset = comparefig.add_axes([ax_left, ax_bottom, 0.14, 0.045])
-            label = self._short_bandpass_label(preset_profile)
-            button = Button(ax_preset, label)
-            if any(self._bandpass_profile_key(existing) == self._bandpass_profile_key(preset_profile)
-                   for existing in self.compare_bandpass_profiles):
-                ax_preset.set_facecolor('#ffe7a8')
-            elif any(self._bandpass_profile_key(existing) == self._bandpass_profile_key(preset_profile)
-                     for existing in self.compare_default_bandpass_profiles):
-                ax_preset.set_facecolor('#e6f1ff')
-            else:
-                ax_preset.set_facecolor('#f2f2f2')
-            button.on_clicked(
-                lambda _event, profile=preset_profile: self._toggle_compare_preset_profile(preview_index, profile)
-            )
-            preset_buttons.append(button)
-
-        ax_freqmin = comparefig.add_axes([0.18, controls_y, 0.07, 0.05])
-        ax_freqmax = comparefig.add_axes([0.27, controls_y, 0.07, 0.05])
-        ax_corners = comparefig.add_axes([0.39, controls_y, 0.05, 0.05])
-        ax_passes = comparefig.add_axes([0.48, controls_y, 0.05, 0.05])
-        ax_apply = comparefig.add_axes([0.57, controls_y, 0.07, 0.05])
-        ax_add = comparefig.add_axes([0.66, controls_y, 0.07, 0.05])
-        ax_clear = comparefig.add_axes([0.75, controls_y, 0.07, 0.05])
-        ax_capture = comparefig.add_axes([0.84, controls_y, 0.07, 0.05])
-        ax_defaults = comparefig.add_axes([0.84, preset_row_y0, 0.07, 0.045])
-        box_freqmin = TextBox(ax_freqmin, '', initial='')
-        box_freqmax = TextBox(ax_freqmax, '', initial='')
-        box_corners = TextBox(ax_corners, '', initial='')
-        box_passes = TextBox(ax_passes, '', initial='')
-        button_apply = Button(ax_apply, 'Apply')
-        button_add = Button(ax_add, 'Add')
-        button_clear = Button(ax_clear, 'Clear')
-        button_capture = Button(ax_capture, 'C')
-        button_defaults = Button(ax_defaults, 'Def')
-        comparefig._compare_controls['freqmin'] = box_freqmin
-        comparefig._compare_controls['freqmax'] = box_freqmax
-        comparefig._compare_controls['corners'] = box_corners
-        comparefig._compare_controls['passes'] = box_passes
-        comparefig._compare_controls['apply'] = button_apply
-        comparefig._compare_controls['add'] = button_add
-        comparefig._compare_controls['clear'] = button_clear
-        comparefig._compare_controls['capture'] = button_capture
-        comparefig._compare_controls['defaults'] = button_defaults
-        comparefig._compare_controls['preset_buttons'] = preset_buttons
-        shown_profile = input_profile
-        if shown_profile is None:
-            shown_profile = profiles[selected_slot] if selected_slot > 0 else self._current_bandpass_profile()
-        if shown_profile is not None:
-            self._populate_compare_inputs(comparefig, shown_profile)
-
-        def on_compare_click(event):
-            if event.inaxes in axes:
-                selected = axes.index(event.inaxes)
-                profile = profiles[selected] if selected < len(profiles) else None
-                self.plot_compare_preview(preview_index, selected_slot=selected, input_profile=profile)
-
-        def on_compare_key(event):
-            key = str(event.key).lower()
-            if key == ' ' or key == 'space':
-                self.close_compare_window()
-            elif key == 'a':
-                self._add_compare_profile_from_inputs(comparefig, preview_index)
-            elif key == 'c':
-                self._save_compare_snapshot(comparefig, preview_index)
-            elif key == 'd':
-                self._save_compare_defaults_from_selection(preview_index)
-            elif key == 'x':
-                self._clear_compare_profiles_from_window(preview_index)
-
-        button_apply.on_clicked(lambda _event: self._replace_selected_compare_profile(comparefig, preview_index))
-        button_add.on_clicked(lambda _event: self._add_compare_profile_from_inputs(comparefig, preview_index))
-        button_clear.on_clicked(lambda _event: self._clear_compare_profiles_from_window(preview_index))
-        button_capture.on_clicked(lambda _event: self._save_compare_snapshot(comparefig, preview_index))
-        button_defaults.on_clicked(lambda _event: self._save_compare_defaults_from_selection(preview_index))
-        comparefig.canvas.mpl_connect('button_press_event', on_compare_click)
-        comparefig.canvas.mpl_connect('key_press_event', on_compare_key)
-        comparefig.canvas.draw_idle()
-        self._restore_compare_window_state(comparefig, window_state)
-        self.comparefig = comparefig
 
     def _refresh_preview_figure(self, fig, preview_index):
         if preview_index >= len(self.preview_modes):

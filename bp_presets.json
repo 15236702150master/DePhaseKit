@@ -42,25 +42,5 @@
       "corners": 2,
       "passes": 1
     }
-  ],
-  "compare_defaults": [
-    {
-      "freqmin": 0.5,
-      "freqmax": 1.5,
-      "corners": 2,
-      "passes": 2
-    },
-    {
-      "freqmin": 0.02,
-      "freqmax": 0.2,
-      "corners": 2,
-      "passes": 2
-    },
-    {
-      "freqmin": 0.05,
-      "freqmax": 0.4,
-      "corners": 2,
-      "passes": 2
-    }
   ]
 }
