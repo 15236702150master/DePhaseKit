@@ -1,0 +1,78 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dephasekit"
+version = "1.0.0"
+description = "深度震相分析工具包：远震波形分组叠加、前驱波拾取与地壳厚度正演反演"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+authors = [{ name = "<作者姓名 / AUTHOR NAME>", email = "15236702150master@users.noreply.github.com" }]
+keywords = [
+    "seismology",
+    "depth phase",
+    "precursor",
+    "crustal thickness",
+    "Moho",
+    "waveform stacking",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+dependencies = [
+    "matplotlib==3.8.2",
+    "numpy==1.26.2",
+    "obspy==1.4.0",
+    "PySide6==6.7.0",
+    "scipy>=1.11",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8.0"]
+
+[project.urls]
+Homepage = "https://github.com/<用户名>/DePhaseKit"
+Repository = "https://github.com/<用户名>/DePhaseKit"
+
+[project.scripts]
+dephase = "ppk:main"
+
+# 说明：本包目前是平铺模块布局（顶层若干 .py + forward 子包），模块之间用
+# 顶层名互相导入（如 `import stack_system`）。改成 src/dephasekit/ 的规范布局
+# 需要同时改写 19 个模块的相互引用，属于独立的重构，尚未进行。
+[tool.setuptools]
+py-modules = [
+    "WaveFigure",
+    "dsm_fit_compare_core",
+    "dsm_fit_compare_dialog",
+    "pierce_point_cache",
+    "pierce_point_extract",
+    "plot_group_pierce_batch",
+    "plot_topdist_std",
+    "ppk",
+    "ppk_stack",
+    "repair_stack_group_pierce_means",
+    "repair_stack_metadata",
+    "stack_crustal_thickness",
+    "stack_group_thickness_index",
+    "stack_linear_rms",
+    "stack_system",
+    "stack_thickness_review_core",
+    "stack_thickness_review_dialog",
+    "window_geometry",
+]
+packages = ["forward"]
+
+[tool.setuptools.package-data]
+"*" = ["*.json", "cpt/*.cpt"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["ignore::DeprecationWarning"]

@@ -1,0 +1,33 @@
+cff-version: 1.2.0
+message: "如果本软件对你的研究有帮助，请按以下方式引用。"
+title: "DePhaseKit: 深度震相分析工具包"
+abstract: >-
+  用于远震波形的分组叠加、深度震相前驱波（pmP / smP）交互拾取，
+  以及基于走时差的地壳厚度正演反演。提供平层解析公式与 TauP 变莫霍
+  精确射线追踪两条相互独立的正演路径，可交叉校验平层近似的适用性。
+type: software
+version: 1.0.0
+date-released: "2026-08-30"
+license: MIT
+repository-code: "https://github.com/<用户名>/DePhaseKit"
+keywords:
+  - seismology
+  - depth phase
+  - precursor
+  - crustal thickness
+  - Moho
+authors:
+  - family-names: "<姓>"
+    given-names: "<名>"
+    email: "15236702150master@users.noreply.github.com"
+    # orcid: "https://orcid.org/0000-0000-0000-0000"
+
+# 方法与结果请引用配套论文（投稿中，见刊后补全卷期页码）。
+preferred-citation:
+  type: article
+  title: "利用深度震相 pP 前驱波 pmP 约束南桑威奇岛弧地壳厚度"
+  authors:
+    - family-names: "<姓>"
+      given-names: "<名>"
+  year: 2026
+  journal: "<期刊名>"
